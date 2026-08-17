@@ -7,7 +7,7 @@ Walking-skeleton plan: each milestone is a ~1-day slice that ends in something p
 - [x] **M2. Docker Compose: Postgres+pgvector** — `docker-compose.yml` + `.env.example`. Deferred the web/api/ml placeholder containers from the original scope — they'll join the compose file as real services in M3/M5/M9 instead of being built twice. *Preview: `docker compose up -d` → postgres healthy, `CREATE EXTENSION vector` succeeds.*
 
 ## Group 2 — Frontend Skeleton
-- [ ] **M3. Vite + React + TS + router + TanStack Query** — "Hello" landing page. *Preview: app loads at localhost.*
+- [x] **M3. Vite + React + TS + router + TanStack Query** — "Hello" landing page, stripped Vite's default demo boilerplate. *Preview: `cd web && npm run dev` → http://localhost:5173*
 - [ ] **M4. Nav + stub pages** (Home/Login/Dashboard) + Tailwind baseline. *Preview: click between 3 pages.*
 
 ## Group 3 — Main API Skeleton
