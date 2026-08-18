@@ -1,8 +1,13 @@
+import Hero from '../components/Hero'
+import AboutUs from '../components/AboutUs'
+import GuidesTeaser from '../components/GuidesTeaser'
+
 function Home() {
   return (
     <main>
-      <h1>Hello, tonberry</h1>
-      <p>Frontend scaffold is live.</p>
+      <Hero />
+      <AboutUs />
+      <GuidesTeaser />
     </main>
   )
 }
