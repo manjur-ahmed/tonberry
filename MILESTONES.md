@@ -24,7 +24,7 @@ Since the idea was picked early (right after M3), the remaining local-skeleton m
 - [x] **M4. Real homepage + route stubs** — hero (H1 + lead form UI only, not wired to an endpoint yet), About Us, Guides teaser section; nav; `/login`, `/dashboard`, `/guides` as route stubs; Tailwind v4 baseline. *Preview: `cd web && npm run dev` → homepage shows all real sections; all four routes load.*
 
 ## Group 3 — Main API Skeleton
-- [ ] **M5. NestJS/Fastify scaffold** — health endpoint, config module, structured logging. *Preview: `curl /health` → 200 JSON.*
+- [x] **M5. NestJS/Fastify scaffold** — health endpoint, `ConfigModule`, structured JSON logging via Fastify's built-in pino logger. *Preview: `cd api && npm run start:dev`, then `curl http://localhost:3000/health` → 200 JSON.*
 - [ ] **M6. Wire frontend → API** — TanStack Query hook hitting `/health`. *Preview: UI shows live "API status: OK".*
 
 ## Group 4 — Data Layer
