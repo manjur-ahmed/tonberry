@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import ApiStatus from './ApiStatus'
 
 function Nav() {
   return (
@@ -8,6 +9,7 @@ function Nav() {
           tonberry
         </Link>
         <div className="flex items-center gap-6 text-sm font-medium text-slate-600">
+          <ApiStatus />
           <Link to="/guides" className="hover:text-slate-900">
             Guides
           </Link>
