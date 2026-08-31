@@ -28,7 +28,7 @@ Since the idea was picked early (right after M3), the remaining local-skeleton m
 - [x] **M6. Wire frontend → API** — TanStack Query hook hitting `/health` every 10s, CORS enabled on the API. *Preview: small status dot + "API status: ok" in the nav, on every page.*
 
 ## Group 4 — Data Layer
-- [ ] **M7. Multi-tenant schema** — `organizations`, `users` (role: `platform_admin`/`broker`, `org_id`), `leads` (submission fields + status + `assigned_org_id`) — migration only, no endpoints yet. *Preview: migration runs, tables visible in Adminer.*
+- [x] **M7. Multi-tenant schema** — TypeORM entities + a real migration (not `synchronize`) for `organizations`, `users` (role: `platform_admin`/`broker`, `org_id`), `leads` (submission fields + `priority_score` + status + `assigned_org_id`). *Preview: `cd api && npm run migration:run`, then check http://localhost:8080 (Adminer) — all three tables plus FKs are there.*
 - [ ] **M8. Public lead-capture endpoint** — unauthenticated `POST /leads`, wired to the homepage hero form. First real end-to-end flow. *Preview: submit the hero form, see the row land in `leads` via Adminer.*
 
 ## Group 5 — ML Service Skeleton
