@@ -7,3 +7,23 @@ export async function fetchHealth(): Promise<{ status: string; timestamp: string
   }
   return response.json()
 }
+
+export interface CreateLeadInput {
+  name: string
+  email: string
+  propertyType?: string
+  loanAmount?: string
+}
+
+export async function createLead(input: CreateLeadInput) {
+  const response = await fetch(`${API_URL}/leads`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.message?.[0] ?? `Submission failed: ${response.status}`)
+  }
+  return response.json()
+}
