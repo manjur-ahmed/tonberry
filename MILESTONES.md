@@ -29,12 +29,12 @@ Since the idea was picked early (right after M3), the remaining local-skeleton m
 
 ## Group 4 — Data Layer
 - [x] **M7. Multi-tenant schema** — TypeORM entities + a real migration (not `synchronize`) for `organizations`, `users` (role: `platform_admin`/`broker`, `org_id`), `leads` (submission fields + `priority_score` + status + `assigned_org_id`). *Preview: `cd api && npm run migration:run`, then check http://localhost:8080 (Adminer) — all three tables plus FKs are there.*
-- [ ] **M8. Public lead-capture endpoint** — unauthenticated `POST /leads`, wired to the homepage hero form. First real end-to-end flow. *Preview: submit the hero form, see the row land in `leads` via Adminer.*
+- [x] **M8. Public lead-capture endpoint** — unauthenticated `POST /leads` (class-validator DTO, global `ValidationPipe`), wired to the homepage hero form via a TanStack Query mutation with loading/success/error states. First real end-to-end flow. *Preview: submit the hero form at http://localhost:5173, see a "Thanks — we've got it" confirmation, then confirm the row landed via Adminer (http://localhost:8080).*
 
 ## Group 5 — ML Service Skeleton
-- [ ] **M9. FastAPI scaffold** — health endpoint. *Preview: `curl /health` → 200 JSON.*
-- [ ] **M10. NestJS → FastAPI internal call** — combined `/system-status`. *Preview: both services show green through one endpoint.*
-- [ ] **M11. Deterministic lead-priority score** — rule-based heuristic (e.g. loan size + form completeness), computed in FastAPI, called from NestJS's lead endpoint. *Preview: curl the lead endpoint, see a `priority_score` field in the response.*
+- [x] **M9. FastAPI scaffold** — health endpoint, `.venv` + pinned `requirements.txt`. *Preview: `cd ml && .venv/Scripts/uvicorn app.main:app --reload --port 8000`, then `curl http://localhost:8000/health` → 200 JSON.*
+- [x] **M10. NestJS → FastAPI internal call** — combined `/system-status`. Hit a real gotcha: Node's `fetch` resolves `localhost` to `::1` first, but uvicorn only binds IPv4 by default — used `127.0.0.1` explicitly for the internal call to fix it. *Preview: `curl http://localhost:3000/system-status` → `{"api":"ok","ml":"ok"}` (with both dev servers running).*
+- [x] **M11. Deterministic lead-priority score** — FastAPI `/score` (loan-size bucket + form-completeness heuristic), called from `LeadsService.create` before saving (best-effort: a failed ML call still saves the lead with a null score). Dropped `uvicorn --reload` for the ml service — its Windows subprocess reload kept relaunching under the system Python instead of the venv, so it's a plain foreground process restarted manually, same as the API. *Preview: `curl -X POST http://localhost:3000/leads -d '{"name":"Test","email":"t@example.com","loanAmount":"750000",...}'` → response includes a real `priorityScore`.*
 
 ## Group 6 — Auth
 - [ ] **M12. JWT auth in NestJS** — signup/login for financer users, `org_id` + role embedded in the token, guard enforces org scoping. *Preview: log in as two different org users, confirm each only gets their own org's data from a protected test endpoint.*

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HealthModule } from './health/health.module';
+import { LeadsModule } from './leads/leads.module';
+import { SystemStatusModule } from './system-status/system-status.module';
 import { Organization } from './organizations/organization.entity';
 import { User } from './users/user.entity';
 import { Lead } from './leads/lead.entity';
@@ -24,6 +26,8 @@ import { Lead } from './leads/lead.entity';
       }),
     }),
     HealthModule,
+    LeadsModule,
+    SystemStatusModule,
   ],
 })
 export class AppModule {}
