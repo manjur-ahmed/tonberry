@@ -1,0 +1,38 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { HealthModule } from './health/health.module';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { User } from './users/user.entity';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => {
+        const databaseUrl = config.get<string>('DATABASE_URL');
+        return {
+          type: 'postgres' as const,
+          entities: [User],
+          // Migrations only (src/database/migrations) — never auto-sync.
+          synchronize: false,
+          ...(databaseUrl
+            ? { url: databaseUrl, ssl: { rejectUnauthorized: false } }
+            : {
+                host: config.get<string>('DATABASE_HOST', 'localhost'),
+                port: config.get<number>('DATABASE_PORT', 5432),
+                username: config.get<string>('DATABASE_USER', 'tonberry'),
+                password: config.get<string>('DATABASE_PASSWORD', 'tonberry'),
+                database: config.get<string>('DATABASE_NAME', 'tonberry_101ai'),
+              }),
+        };
+      },
+    }),
+    HealthModule,
+    UsersModule,
+    AuthModule,
+  ],
+})
+export class AppModule {}

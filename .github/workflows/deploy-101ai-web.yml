@@ -1,0 +1,46 @@
+name: Deploy 101ai web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "101ai/web/**"
+      - ".github/workflows/deploy-101ai-web.yml"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC — no stored AWS keys
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 101ai/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: 101ai/web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          VITE_API_URL: ${{ vars.AI101_API_URL }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AI101_GITHUB_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AI101_AWS_REGION }}
+
+      - run: aws s3 sync dist/ s3://${{ vars.AI101_S3_BUCKET }} --delete
+
+      - run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ vars.AI101_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"

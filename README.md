@@ -11,6 +11,10 @@ for the full plan.
 - `api/` — NestJS (Fastify) main API
 - `ml/` — FastAPI ML service
 - `infra/` — Terraform for AWS deployment
+- `101ai/` — separate product ("101 AI Tools"), a catalog of everyday AI
+  tools, each with its own custom UI. Shares this repo's Postgres/Docker
+  setup but not the CRM's code or entities — see `101ai/README.md`. Not
+  tracked in `MILESTONES.md`, which stays scoped to the CRM project.
 
 ## Local development
 
