@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Ban,
   ChevronLeft,
   ChevronRight,
   Crown,
   Brain,
+  Lock,
   LogOut,
   Mail,
   Moon,
@@ -177,6 +178,12 @@ function Settings() {
           <span className="flex-1 text-sm font-medium text-slate-900">Dark theme</span>
           <Switch checked={isDark} onChange={handleThemeToggle} />
         </div>
+
+        <Link to="/settings/password" className="flex items-center gap-3 px-4 py-3.5">
+          <Lock className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
+          <span className="flex-1 text-sm font-medium text-slate-900">Change password</span>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+        </Link>
 
         <a href="mailto:support@101aitools.app" className="flex items-center gap-3 px-4 py-3.5">
           <Mail className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
