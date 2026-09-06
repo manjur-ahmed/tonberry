@@ -30,6 +30,14 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      # Runs before the code deploy below, so the schema is never behind
+      # what the new Lambda code expects (that gap is what broke prod
+      # sign-in — migrations had only ever been run manually against Neon).
+      - name: Run database migrations
+        run: npm run migration:run
+        env:
+          DATABASE_URL: ${{ secrets.AI101_DATABASE_URL }}
+
       # Production-only node_modules, staged alongside dist/ — devDependencies
       # (typescript, jest, eslint, ...) would otherwise bloat the zip.
       - name: Stage Lambda package
