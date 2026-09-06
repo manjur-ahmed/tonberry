@@ -24,7 +24,14 @@ resource "aws_iam_role" "github_actions_deploy" {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:manjur-ahmed/tonberry:ref:refs/heads/main"
+          # Wildcarded rather than an exact match: GitHub appends an
+          # immutable "@<id>" suffix to the org/repo names in this claim
+          # for a period after either is renamed or transferred (e.g.
+          # "manjur-ahmed@142892965/tonberry@1331271374") to stop a stale
+          # trust policy from later trusting whoever claims the old name.
+          # This still only matches this org/repo, just tolerant of that
+          # suffix being present or absent.
+          "token.actions.githubusercontent.com:sub" = "repo:manjur-ahmed*/tonberry*:ref:refs/heads/main"
         }
       }
     }]
