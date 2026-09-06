@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import DefaultResponse from '../default/ResponseView'
-import { saveItem } from '../../lib/items'
+import { saveItem, ItemLimitReachedError } from '../../lib/items'
+import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
+import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import type { ResponseViewProps } from '../responseViews'
 
 interface WordDefinition {
@@ -25,7 +27,7 @@ function Label({ children }: { children: string }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</h3>
 }
 
-function WordHelperResponse({ content, toolSlug, chatId, readOnly }: ResponseViewProps) {
+function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
   let data: WordDefinition | null = null
   try {
     const parsed = JSON.parse(content)
@@ -40,7 +42,19 @@ function WordHelperResponse({ content, toolSlug, chatId, readOnly }: ResponseVie
       // Dedup key is the word itself — looking up "happy" twice (or asking
       // a follow-up about it) updates the same item instead of piling up
       // duplicates. Tools with no natural "same thing" concept just omit this.
-      return saveItem(toolSlug, chatId, data.word, data, data.word.toLowerCase())
+      const request = saveItem(toolSlug, chatId, data.word, data, data.word.toLowerCase())
+      // This resolves near-instantly today, but the spinner should still
+      // read as a spinner rather than flash by — holds it open at least
+      // this long regardless of how fast (or slow, once real) the save is.
+      return withMinDuration(request, MIN_SAVE_SPINNER_MS)
+    },
+    onMutate: () => onSaveStatusChange?.('saving'),
+    onSuccess: () => {
+      markItemSavedForMessage(messageId)
+      onSaveStatusChange?.('saved')
+    },
+    onError: (error) => {
+      onSaveStatusChange?.(error instanceof ItemLimitReachedError ? 'limit-reached' : 'error')
     },
   })
 
@@ -49,16 +63,25 @@ function WordHelperResponse({ content, toolSlug, chatId, readOnly }: ResponseVie
   // message instance (component is freshly mounted per message.id) — the
   // ref guard is only to dodge StrictMode's dev-mode double-invoke; the
   // dedup key already makes a genuine double-call harmless either way.
+  //
+  // Reopening a chat remounts this for every historical message too, so a
+  // message whose item already saved successfully skips straight to
+  // "saved" instead of re-running the save (and, if the item limit's since
+  // been hit, flashing an error on something that's already safely stored).
   const hasSavedRef = useRef(false)
   useEffect(() => {
-    if (data && !readOnly && !hasSavedRef.current) {
-      hasSavedRef.current = true
-      saveMutation.mutate()
+    if (!data || readOnly) return
+    if (hasSavedItemForMessage(messageId)) {
+      onSaveStatusChange?.('saved')
+      return
     }
+    if (hasSavedRef.current) return
+    hasSavedRef.current = true
+    saveMutation.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  if (!data) return <DefaultResponse content={content} toolSlug={toolSlug} chatId={chatId} />
+  if (!data) return <DefaultResponse content={content} toolSlug={toolSlug} chatId={chatId} messageId={messageId} />
 
   return (
     <div>

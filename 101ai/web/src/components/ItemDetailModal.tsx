@@ -22,6 +22,7 @@ function ItemDetailModal({ item, onClose }: { item: Item; onClose: () => void })
             content={JSON.stringify(item.data)}
             toolSlug={item.toolSlug}
             chatId={item.chatId ?? ''}
+            messageId={item.id}
             readOnly
           />
         </div>

@@ -3,10 +3,16 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronLeft } from 'lucide-react'
 import { getAllChats } from '../lib/chats'
 import { getTool } from '../tools/registry'
+import { useAuth } from '../hooks/useAuth'
 
 function Recent() {
   const navigate = useNavigate()
-  const { data: chats = [] } = useQuery({ queryKey: ['chats'], queryFn: getAllChats })
+  const { user } = useAuth()
+  const { data: chats = [] } = useQuery({
+    queryKey: ['chats'],
+    queryFn: getAllChats,
+    enabled: !!user,
+  })
 
   return (
     <main className="px-4 py-6">

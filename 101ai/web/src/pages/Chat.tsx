@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Info, Plus } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import { useAuth } from '../hooks/useAuth'
-import { addMessage, getChat } from '../lib/chats'
+import { addMessage, createChat, getChat, type Chat as ChatData } from '../lib/chats'
+import { delay } from '../lib/delay'
+import { getLoadingDuration } from '../tools/loadingStages'
+import { hasSeenItemLimitNotice, markItemLimitNoticeSeen } from '../lib/itemLimitNotice'
 import RedirectSuggestion from '../components/RedirectSuggestion'
 import MessageActions from '../components/MessageActions'
-import { getResponseView } from '../tools/responseViews'
+import GeneratingResponse from '../components/GeneratingResponse'
+import ItemLimitBanner from '../components/ItemLimitBanner'
+import { getResponseView, type SaveStatus } from '../tools/responseViews'
 
 const MAX_TEXTAREA_HEIGHT = 88 // ~4 lines at text-sm
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -22,20 +27,41 @@ function scrollWindowToBottom(behavior: ScrollBehavior = 'auto') {
 
 function Chat() {
   const { slug, chatId } = useParams<{ slug: string; chatId: string }>()
+  const location = useLocation()
   const tool = slug ? getTool(slug) : undefined
   const { user } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+  // ToolDashboard hands off a freshly-typed first message via router state
+  // rather than creating the chat itself — that way the very first reply
+  // gets the same optimistic-bubble + generating-stages treatment as every
+  // later message, instead of a separate full-page loader on the dashboard.
+  const isNewChat = chatId === 'new'
+  const firstMessage = isNewChat ? (location.state as { firstMessage?: string } | null)?.firstMessage : undefined
+  const hasStartedNewChatRef = useRef(false)
+
   const [draft, setDraft] = useState('')
   const [redirectSuggestion, setRedirectSuggestion] = useState<string | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [saveStatuses, setSaveStatuses] = useState<Record<string, SaveStatus>>({})
+  const [itemLimitNoticeMessageId, setItemLimitNoticeMessageId] = useState<string | null>(null)
+
+  function handleSaveStatusChange(messageId: string, status: SaveStatus) {
+    setSaveStatuses((current) => ({ ...current, [messageId]: status }))
+    // Once shown for this chat, never show it again — even if another
+    // message in the same chat also hits the limit.
+    if (status === 'limit-reached' && chatId && !hasSeenItemLimitNotice(chatId)) {
+      markItemLimitNoticeSeen(chatId)
+      setItemLimitNoticeMessageId(messageId)
+    }
+  }
 
   const { data: chat, isLoading } = useQuery({
     queryKey: ['chat', chatId],
     queryFn: () => getChat(chatId!),
-    enabled: !!chatId,
+    enabled: !!chatId && !isNewChat,
   })
 
   const hasMemory = user?.plan === 'plus' || user?.plan === 'premium'
@@ -62,24 +88,88 @@ function Chat() {
   }, [draft])
 
   const sendMutation = useMutation({
-    mutationFn: () => addMessage(chatId!, draft),
-    onSuccess: (result) => {
-      setDraft('')
+    mutationFn: async (content: string) => {
+      const result = isNewChat ? await createChat(tool!.slug, content) : await addMessage(chatId!, content)
+      // No real API latency yet (see openai.service.ts) — hold the reply so
+      // the fake "generating" stages below get a beat on screen instead of
+      // flashing in and out instantly.
+      await delay(getLoadingDuration(tool!.slug))
+      return result
+    },
+    // Shows the user's own message immediately rather than waiting on the
+    // (now artificially delayed) round trip — reverted below if the router
+    // redirects instead of actually saving it to this chat.
+    onMutate: (content: string) => {
+      const previous = queryClient.getQueryData<ChatData>(['chat', chatId])
+      if (previous) {
+        queryClient.setQueryData<ChatData>(['chat', chatId], {
+          ...previous,
+          messages: [
+            ...previous.messages,
+            { id: `optimistic-${Date.now()}`, role: 'user', content, createdAt: new Date().toISOString() },
+          ],
+        })
+      }
+      return { previous }
+    },
+    onSuccess: (result, _content, context) => {
       if (result.type === 'redirect') {
+        if (context?.previous) queryClient.setQueryData(['chat', chatId], context.previous)
         setRedirectSuggestion(result.suggestedTool)
+        return
+      }
+      if (isNewChat) {
+        // Swap "new" for the real chat id the backend just assigned —
+        // seeding its cache first means this navigation doesn't cause a
+        // fresh loading flash, it just picks up where "new" left off.
+        queryClient.setQueryData(['chat', result.chat.id], result.chat)
+        navigate(`/tools/${tool!.slug}/chats/${result.chat.id}`, { replace: true })
       } else {
         queryClient.setQueryData(['chat', chatId], result.chat)
         requestAnimationFrame(() => scrollWindowToBottom('smooth'))
       }
     },
+    onError: (_error, content, context) => {
+      if (context?.previous) queryClient.setQueryData(['chat', chatId], context.previous)
+      if (isNewChat) {
+        navigate(`/tools/${tool!.slug}/dashboard`, { replace: true })
+      } else {
+        setDraft(content)
+      }
+    },
   })
+
+  // Kick off the first message as soon as we land here — before paint, so
+  // there's no flash of an empty/loading chat before the optimistic bubble
+  // and generating indicator appear.
+  useLayoutEffect(() => {
+    if (!isNewChat || hasStartedNewChatRef.current) return
+    if (!firstMessage || !tool) {
+      navigate(tool ? `/tools/${tool.slug}/dashboard` : '/', { replace: true })
+      return
+    }
+    hasStartedNewChatRef.current = true
+    queryClient.setQueryData<ChatData>(['chat', 'new'], {
+      id: 'new',
+      toolSlug: tool.slug,
+      title: '',
+      lastMessagePreview: null,
+      messages: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+    sendMutation.mutate(firstMessage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function handleSend() {
     if (!draft.trim() || !chatId) return
-    sendMutation.mutate()
+    sendMutation.mutate(draft)
+    setDraft('')
+    requestAnimationFrame(() => scrollWindowToBottom('smooth'))
   }
 
-  if (!tool || isLoading) {
+  if (!tool || (isNewChat ? !chat : isLoading)) {
     return (
       <main className="px-4 py-6">
         <p className="text-slate-600">Loading...</p>
@@ -136,10 +226,23 @@ function Chat() {
             </div>
           ) : (
             <div key={message.id}>
-              <ResponseView content={message.content} toolSlug={tool.slug} chatId={chat.id} />
-              <MessageActions content={message.content} />
+              <ResponseView
+                content={message.content}
+                toolSlug={tool.slug}
+                chatId={chat.id}
+                messageId={message.id}
+                onSaveStatusChange={(status) => handleSaveStatusChange(message.id, status)}
+              />
+              <MessageActions content={message.content} saveStatus={saveStatuses[message.id]} />
+              {itemLimitNoticeMessageId === message.id && <ItemLimitBanner />}
             </div>
           ),
+        )}
+
+        {sendMutation.isPending && (
+          <div>
+            <GeneratingResponse toolSlug={tool.slug} />
+          </div>
         )}
       </div>
 

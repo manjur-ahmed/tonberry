@@ -4,11 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowUp, ChevronRight, Minimize2, MoreVertical, Plus, Sparkles, Star } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import { isToolSaved, toggleSavedTool } from '../lib/savedTools'
-import { createChat, getChatsForTool } from '../lib/chats'
+import { getChatsForTool } from '../lib/chats'
 import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { getItemView } from '../tools/itemViews'
-import RedirectSuggestion from '../components/RedirectSuggestion'
 import ItemDetailModal from '../components/ItemDetailModal'
+import { useAuth } from '../hooks/useAuth'
 
 const tabs = ['Items', 'Chats', 'Examples'] as const
 type Tab = (typeof tabs)[number]
@@ -18,35 +18,24 @@ function ToolDashboard() {
   const tool = slug ? getTool(slug) : undefined
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('Items')
   const [isSaved, setIsSaved] = useState(() => (tool ? isToolSaved(tool.slug) : false))
   const [isComposing, setIsComposing] = useState(false)
   const [message, setMessage] = useState('')
-  const [redirectSuggestion, setRedirectSuggestion] = useState<string | null>(null)
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [openItemMenuId, setOpenItemMenuId] = useState<string | null>(null)
 
   const { data: chats = [] } = useQuery({
     queryKey: ['chats', tool?.slug],
     queryFn: () => getChatsForTool(tool!.slug),
-    enabled: !!tool,
+    enabled: !!tool && !!user,
   })
 
   const { data: items = [] } = useQuery({
     queryKey: ['items', tool?.slug],
     queryFn: () => getItemsForTool(tool!.slug),
-    enabled: !!tool,
-  })
-
-  const sendMutation = useMutation({
-    mutationFn: () => createChat(tool!.slug, message),
-    onSuccess: (result) => {
-      if (result.type === 'redirect') {
-        setRedirectSuggestion(result.suggestedTool)
-      } else {
-        navigate(`/tools/${tool!.slug}/chats/${result.chat.id}`)
-      }
-    },
+    enabled: !!tool && !!user,
   })
 
   const deleteItemMutation = useMutation({
@@ -63,13 +52,15 @@ function ToolDashboard() {
   }
 
   function handleOpenCompose() {
-    setRedirectSuggestion(null)
     setIsComposing(true)
   }
 
   function handleSend() {
     if (!message.trim() || !tool) return
-    sendMutation.mutate()
+    // The chat doesn't exist yet — Chat.tsx creates it (and shows the
+    // normal generating-reply UI) as soon as it lands on "new" with this
+    // message, rather than this page waiting on it itself.
+    navigate(`/tools/${tool.slug}/chats/new`, { state: { firstMessage: message } })
   }
 
   return (
@@ -96,7 +87,7 @@ function ToolDashboard() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Continue chat</h2>
           <Link
             to={`/tools/${tool?.slug}/chats/${chats[0].id}`}
-            className="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+            className="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
           >
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-900">{chats[0].title}</p>
@@ -212,7 +203,7 @@ function ToolDashboard() {
       </button>
 
       {isComposing && (
-        <div className="absolute inset-0 z-50 flex flex-col bg-white">
+        <div className="absolute inset-x-0 top-0 z-50 flex h-[100dvh] flex-col bg-white">
           <div className="flex justify-end px-4 pt-4">
             <button
               type="button"
@@ -224,41 +215,33 @@ function ToolDashboard() {
             </button>
           </div>
 
-          {redirectSuggestion ? (
-            <div className="flex flex-1 items-center justify-center px-6">
-              <RedirectSuggestion toolSlug={redirectSuggestion} onDismiss={() => setRedirectSuggestion(null)} />
-            </div>
-          ) : (
-            <>
-              <textarea
-                autoFocus
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder={`How can ${tool?.name ?? 'this tool'} help you today?`}
-                className="flex-1 resize-none px-6 py-2 text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none"
-              />
+          <textarea
+            autoFocus
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder={`How can ${tool?.name ?? 'this tool'} help you today?`}
+            className="flex-1 resize-none px-6 py-2 text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          />
 
-              <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-                <button
-                  type="button"
-                  aria-label="Attach an image"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500"
-                >
-                  <Plus className="h-5 w-5" strokeWidth={1.75} />
-                </button>
+          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+            <button
+              type="button"
+              aria-label="Attach an image"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500"
+            >
+              <Plus className="h-5 w-5" strokeWidth={1.75} />
+            </button>
 
-                <button
-                  type="button"
-                  disabled={!message.trim() || sendMutation.isPending}
-                  onClick={handleSend}
-                  aria-label="Send"
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
-                >
-                  <ArrowUp className="h-5 w-5" strokeWidth={2} />
-                </button>
-              </div>
-            </>
-          )}
+            <button
+              type="button"
+              disabled={!message.trim()}
+              onClick={handleSend}
+              aria-label="Send"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
+            >
+              <ArrowUp className="h-5 w-5" strokeWidth={2} />
+            </button>
+          </div>
         </div>
       )}
 

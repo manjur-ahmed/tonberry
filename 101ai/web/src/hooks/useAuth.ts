@@ -13,7 +13,10 @@ export function useAuth() {
 
   function signOut() {
     clearToken()
-    queryClient.setQueryData(['me'], null)
+    // Clear everything, not just ['me'] — chats/items queries have no auth
+    // gate on their `enabled` option, so they'd otherwise keep serving the
+    // previous user's cached data (as stale-but-shown) after logout.
+    queryClient.clear()
   }
 
   return {

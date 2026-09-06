@@ -16,7 +16,7 @@ function AuthCallback() {
     setToken(token)
     fetchMe()
       .then((user) => {
-        navigate(user?.plan && user?.country ? '/' : '/pricing', { replace: true })
+        navigate(user?.plan && user?.country && user?.name ? '/' : '/pricing', { replace: true })
       })
       .catch(() => setError('Could not complete sign-in. Please try again.'))
   }, [searchParams, navigate])

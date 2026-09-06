@@ -11,6 +11,10 @@ const headings: Record<string, { title: string; subtitle: string }> = {
     title: 'Unlock memory',
     subtitle: 'Upgrade to Plus or Premium to keep memory across chats.',
   },
+  items: {
+    title: 'Unlock unlimited items',
+    subtitle: 'Upgrade to Plus or Premium to save as many items as you like.',
+  },
 }
 const defaultHeading = { title: 'Choose a plan', subtitle: 'Monthly billing, cancel anytime.' }
 
@@ -26,7 +30,7 @@ function Pricing() {
     if (isLoading) return
     if (!user) {
       navigate('/sign-in', { replace: true })
-    } else if (!user.country) {
+    } else if (!user.country || !user.name) {
       navigate('/country', { replace: true })
     }
   }, [user, isLoading, navigate])
@@ -39,7 +43,7 @@ function Pricing() {
     },
   })
 
-  if (isLoading || !user || !user.country) {
+  if (isLoading || !user || !user.country || !user.name) {
     return (
       <main className="px-4 py-16 text-center">
         <p className="text-slate-600">Loading...</p>
