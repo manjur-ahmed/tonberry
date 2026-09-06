@@ -25,7 +25,10 @@ async function authedFetch(path: string, options: RequestInit = {}): Promise<Res
   return fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      // Only set when there's a body — Fastify tries to JSON-parse the
+      // body whenever this header is present (except on GET/HEAD), and
+      // rejects an empty body with a 400 on a bodyless call.
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${getToken()}`,
       ...options.headers,
     },

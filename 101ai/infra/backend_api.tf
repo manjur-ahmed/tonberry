@@ -42,7 +42,7 @@ resource "aws_lambda_function" "api" {
       GOOGLE_OAUTH_CLIENT_SECRET = var.google_oauth_client_secret
       OPENAI_API_KEY             = var.openai_api_key
       FRONTEND_URL               = "https://101ai.tonberry.co.uk"
-      GOOGLE_CALLBACK_URL        = "${aws_apigatewayv2_api.api.api_endpoint}/auth/google/callback"
+      GOOGLE_CALLBACK_URL        = "https://api.101ai.tonberry.co.uk/auth/google/callback"
     }
   }
 
