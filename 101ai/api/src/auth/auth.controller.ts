@@ -1,12 +1,15 @@
-import { Controller, Get, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Res, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcrypt';
 import type { FastifyReply } from 'fastify';
 import { GoogleOAuthService } from './google-oauth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
+import { LoginDto } from './dto/login.dto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
+import { toPublicUser } from '../users/user.serializer';
 
 @Controller('auth')
 export class AuthController {
@@ -37,9 +40,24 @@ export class AuthController {
     return res.redirect(`${frontendUrl}/auth/callback?token=${token}`, 302);
   }
 
+  @Post('login')
+  async login(@Body() dto: LoginDto) {
+    const user = await this.usersService.findByEmail(dto.email);
+    // Same error either way — don't let a caller distinguish "no such
+    // account" from "wrong password".
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+    const matches = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!matches) throw new UnauthorizedException('Invalid email or password');
+
+    const token = this.jwtService.sign({ sub: user.id });
+    return { token };
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: User) {
-    return user;
+    return toPublicUser(user);
   }
 }

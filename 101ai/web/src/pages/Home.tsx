@@ -3,14 +3,21 @@ import { Link } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import ToolCard from '../components/ToolCard'
 import ProgressRing from '../components/ProgressRing'
+import Skeleton from '../components/Skeleton'
 import { categories, getTool, tools, type Tool } from '../tools/registry'
 import { useAuth } from '../hooks/useAuth'
 import { getSavedSlugs } from '../lib/savedTools'
 import { getPlan, plans } from '../lib/plans'
 
 function Home() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, hasToken } = useAuth()
   const showHero = !isLoading && !user
+  // A token means we're almost certainly about to show the logged-in
+  // header, not the hero — reserve its space with a skeleton instead of
+  // rendering nothing, so content doesn't pop in and shove the page down
+  // once /auth/me actually resolves (worse on a slow connection, where the
+  // empty gap is long enough to see).
+  const showHeaderSkeleton = isLoading && hasToken
   const [query, setQuery] = useState('')
   const [savedSlugs] = useState(() => getSavedSlugs())
   const [showChatsTooltip, setShowChatsTooltip] = useState(false)
@@ -63,7 +70,12 @@ function Home() {
   }, [query])
 
   return (
-    <main>
+    // @container — the horizontal-scroll rows below size each card off this
+    // box's own width (cqw) rather than a fixed px value, so exactly 2.25
+    // cards show on load on any device. A fixed width happened to land on
+    // an *exact* 2 cards on some screens, hiding the 3rd entirely and
+    // making the row look like a static grid instead of something to swipe.
+    <main className="@container">
       {showHero && (
         <section className="relative overflow-hidden bg-gradient-to-b from-indigo-100 via-violet-50 to-white px-4 pb-10 pt-16">
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-300/40 blur-2xl" />
@@ -91,41 +103,63 @@ function Home() {
       )}
 
       <div className="px-4 py-10">
-        {user && (
+        {showHeaderSkeleton ? (
           <div className="mb-6 flex items-start justify-between gap-3">
-            <h1 className="font-display text-3xl font-semibold leading-tight text-slate-900">
-              Hi,
-              <br />
-              ready when you are
-            </h1>
-            <div className="relative" ref={chatsRingRef}>
-              <button
-                type="button"
-                onClick={() => setShowChatsTooltip((value) => !value)}
-                aria-label="Daily chats remaining"
-              >
-                <ProgressRing progress={ringProgress} />
-              </button>
-              {showChatsTooltip && (
-                <div className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
-                  {chatsRemaining} chats remaining today
-                </div>
-              )}
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-9 w-16" />
+              <Skeleton className="h-9 w-48" />
             </div>
+            <Skeleton className="h-10 w-10 flex-shrink-0 rounded-full" />
           </div>
+        ) : (
+          user && (
+            <div className="mb-6 flex items-start justify-between gap-3">
+              <h1 className="font-display text-3xl font-semibold leading-tight text-slate-900">
+                Hi,
+                <br />
+                ready when you are
+              </h1>
+              <div className="relative" ref={chatsRingRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowChatsTooltip((value) => !value)}
+                  aria-label="Daily chats remaining"
+                >
+                  <ProgressRing progress={ringProgress} />
+                </button>
+                {showChatsTooltip && (
+                  <div className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+                    {chatsRemaining} chats remaining today
+                  </div>
+                )}
+              </div>
+            </div>
+          )
         )}
 
-        {user && savedTools.length > 0 && (
+        {showHeaderSkeleton && savedSlugs.length > 0 ? (
           <div className="mb-10">
             <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
-            <div className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {savedTools.map((tool) => (
-                <div key={tool.slug} className="h-[170px] w-[170px] flex-shrink-0">
-                  <ToolCard tool={tool} />
-                </div>
+            <div className="mt-4 flex gap-6">
+              {savedSlugs.map((slug) => (
+                <Skeleton key={slug} className="h-[170px] w-[calc((100cqw-5rem)/2.25)] flex-shrink-0" />
               ))}
             </div>
           </div>
+        ) : (
+          user &&
+          savedTools.length > 0 && (
+            <div className="mb-10">
+              <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
+              <div className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {savedTools.map((tool) => (
+                  <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2.25)] flex-shrink-0">
+                    <ToolCard tool={tool} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
         )}
 
         <h2 className="font-display text-2xl font-semibold text-slate-900">Browse Tools</h2>
@@ -170,7 +204,7 @@ function Home() {
                   </h3>
                   <div className="-mx-4 mt-3 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {items.map((tool) => (
-                      <div key={tool.slug} className="h-[170px] w-[170px] flex-shrink-0">
+                      <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2.25)] flex-shrink-0">
                         <ToolCard tool={tool} />
                       </div>
                     ))}

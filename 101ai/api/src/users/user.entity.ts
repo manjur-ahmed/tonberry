@@ -42,6 +42,13 @@ export class User {
   @Column({ name: 'dark_theme', type: 'boolean', default: false })
   darkTheme: boolean;
 
+  // Null for an account that's only ever signed in via Google — set on
+  // /settings/password, which is what lets that same account also sign in
+  // with email + password (e.g. from a device Google's OAuth redirect
+  // can't reach, like over a LAN IP during local testing).
+  @Column({ name: 'password_hash', type: 'varchar', nullable: true })
+  passwordHash: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }
