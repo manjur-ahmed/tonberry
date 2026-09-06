@@ -9,6 +9,7 @@ import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { getItemView } from '../tools/itemViews'
 import ItemDetailModal from '../components/ItemDetailModal'
 import { useAuth } from '../hooks/useAuth'
+import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
 const tabs = ['Items', 'Chats', 'Examples'] as const
 type Tab = (typeof tabs)[number]
@@ -19,6 +20,7 @@ function ToolDashboard() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user } = useAuth()
+  const keyboardInset = useKeyboardInset()
   const [tab, setTab] = useState<Tab>('Items')
   const [isSaved, setIsSaved] = useState(() => (tool ? isToolSaved(tool.slug) : false))
   const [isComposing, setIsComposing] = useState(false)
@@ -203,7 +205,14 @@ function ToolDashboard() {
       </button>
 
       {isComposing && (
-        <div className="absolute inset-x-0 top-0 z-50 flex h-[100dvh] flex-col bg-white">
+        // fixed, not absolute — see ItemDetailModal for why (pins to the
+        // real viewport instead of the whole scrollable page). Bottom
+        // padding tracks the on-screen keyboard (h-[100dvh] doesn't shrink
+        // for it on iOS) so the send button lands above it, not underneath.
+        <div
+          className="fixed inset-x-0 top-0 z-50 mx-auto flex h-[100dvh] max-w-md flex-col bg-white"
+          style={{ paddingBottom: keyboardInset }}
+        >
           <div className="flex justify-end px-4 pt-4">
             <button
               type="button"
