@@ -4,7 +4,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { HealthModule } from './health/health.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { ChatsModule } from './chats/chats.module';
+import { ItemsModule } from './items/items.module';
 import { User } from './users/user.entity';
+import { Chat } from './chats/chat.entity';
+import { Message } from './chats/message.entity';
+import { Item } from './items/item.entity';
 
 @Module({
   imports: [
@@ -15,7 +20,7 @@ import { User } from './users/user.entity';
         const databaseUrl = config.get<string>('DATABASE_URL');
         return {
           type: 'postgres' as const,
-          entities: [User],
+          entities: [User, Chat, Message, Item],
           // Migrations only (src/database/migrations) — never auto-sync.
           synchronize: false,
           ...(databaseUrl
@@ -33,6 +38,8 @@ import { User } from './users/user.entity';
     HealthModule,
     UsersModule,
     AuthModule,
+    ChatsModule,
+    ItemsModule,
   ],
 })
 export class AppModule {}

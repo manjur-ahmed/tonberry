@@ -26,6 +26,11 @@ export class User {
   @Column({ type: 'enum', enum: UserPlan, nullable: true })
   plan: UserPlan | null;
 
+  // ISO 3166-1 alpha-2 code. Null until set on /country — that's the gate
+  // that sends a signed-in user with no country to /country before pricing.
+  @Column({ type: 'varchar', length: 2, nullable: true })
+  country: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

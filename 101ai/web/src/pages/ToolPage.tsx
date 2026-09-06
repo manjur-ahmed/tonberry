@@ -10,17 +10,13 @@ function ToolPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (isLoading) return
-    if (!user) {
-      navigate('/sign-in', { replace: true })
-    } else if (!user.plan) {
-      navigate('/pricing', { replace: true })
-    }
-  }, [user, isLoading, navigate])
+    if (isLoading || !tool || !user) return
+    navigate(`/tools/${tool.slug}/dashboard`, { replace: true })
+  }, [user, isLoading, tool, navigate])
 
   if (!tool) {
     return (
-      <main className="mx-auto max-w-md px-6 py-24 text-center">
+      <main className="px-4 py-16 text-center">
         <h1 className="text-2xl font-semibold text-slate-900">Tool not found</h1>
         <Link to="/" className="mt-4 inline-block text-slate-600 underline">
           Back to all tools
@@ -29,21 +25,40 @@ function ToolPage() {
     )
   }
 
-  if (isLoading || !user || !user.plan) {
+  if (isLoading || user) {
     return (
-      <main className="mx-auto max-w-md px-6 py-24 text-center">
+      <main className="px-4 py-16 text-center">
         <p className="text-slate-600">Loading...</p>
       </main>
     )
   }
 
   return (
-    <main className="mx-auto max-w-md px-6 py-24 text-center">
-      <div className="text-4xl">{tool.icon}</div>
-      <h1 className="mt-3 text-2xl font-semibold text-slate-900">{tool.name}</h1>
-      <p className="mt-2 text-slate-600">
-        You're signed in on the {user.plan} plan — the real tool lands in Phase 3.
-      </p>
+    <main className="flex flex-1 flex-col px-4 py-6">
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        aria-label="Back"
+        className="self-start text-2xl text-slate-900"
+      >
+        ←
+      </button>
+
+      <div className="mt-4 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-100 via-indigo-50 to-white py-14">
+        <div className="mx-auto flex h-20 w-20 animate-float items-center justify-center rounded-full bg-white text-4xl shadow-sm">
+          {tool.icon}
+        </div>
+      </div>
+
+      <h1 className="mt-6 font-display text-2xl font-semibold text-slate-900">{tool.name}</h1>
+      <p className="mb-10 mt-2 text-slate-600">{tool.description}</p>
+
+      <Link
+        to="/sign-in?mode=signup"
+        className="mt-auto block w-full rounded-full bg-slate-900 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700"
+      >
+        Create an account
+      </Link>
     </main>
   )
 }
