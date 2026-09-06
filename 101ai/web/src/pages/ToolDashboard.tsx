@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUp, Minimize2, MoreVertical, Plus, Sparkles, Star } from 'lucide-react'
+import { ArrowUp, ChevronRight, Minimize2, MoreVertical, Plus, Sparkles, Star } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import { isToolSaved, toggleSavedTool } from '../lib/savedTools'
 import { createChat, getChatsForTool } from '../lib/chats'
@@ -90,6 +90,24 @@ function ToolDashboard() {
       </div>
 
       <p className="mt-3 text-sm text-slate-600">{tool?.description}</p>
+
+      {chats.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Continue chat</h2>
+          <Link
+            to={`/tools/${tool?.slug}/chats/${chats[0].id}`}
+            className="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">{chats[0].title}</p>
+              {chats[0].lastMessagePreview && (
+                <p className="mt-1 truncate text-sm text-slate-500">{chats[0].lastMessagePreview}</p>
+              )}
+            </div>
+            <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-400" strokeWidth={1.75} />
+          </Link>
+        </div>
+      )}
 
       <div className="mt-8 flex border-b border-slate-200">
         {tabs.map((label) => (

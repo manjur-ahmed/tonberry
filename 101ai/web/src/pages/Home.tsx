@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import ToolCard from '../components/ToolCard'
@@ -14,6 +14,12 @@ function Home() {
   const [query, setQuery] = useState('')
   const [savedSlugs] = useState(() => getSavedSlugs())
   const [showChatsTooltip, setShowChatsTooltip] = useState(false)
+
+  // The browser (Chrome/Safari alike) can restore a suspended tab at its
+  // last scroll position instead of loading fresh — force the top on landing.
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   // Chat usage isn't tracked anywhere yet (no chat feature exists), so this
   // always renders as an empty ring until real usage data feeds it.

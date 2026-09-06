@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Info, Plus } from 'lucide-react'
 import { getTool } from '../tools/registry'
@@ -111,14 +111,22 @@ function Chat() {
           </button>
           <h1 className="font-display text-xl font-semibold text-slate-900">{tool.name}</h1>
         </div>
-
-        <div className="mt-3 flex items-center gap-1.5 text-xs font-medium text-slate-400">
-          <Info className="h-3.5 w-3.5" strokeWidth={1.75} />
-          Memory {hasMemory ? 'on' : 'off'}
-        </div>
       </div>
 
-      <div className="mt-6 space-y-4">
+      <div className="mt-6 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-400">
+        <Info className="h-3.5 w-3.5" strokeWidth={1.75} />
+        Memory {hasMemory ? 'on' : 'off'}
+        {!hasMemory && (
+          <>
+            {' — '}
+            <Link to="/settings" className="underline">
+              turn on
+            </Link>
+          </>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-4">
         {chat.messages.map((message) =>
           message.role === 'user' ? (
             <div key={message.id} className="flex justify-end">
@@ -152,7 +160,10 @@ function Chat() {
         {redirectSuggestion ? (
           <RedirectSuggestion toolSlug={redirectSuggestion} onDismiss={() => setRedirectSuggestion(null)} />
         ) : (
-          <div className="rounded-3xl bg-slate-100 p-3 shadow-sm">
+          <div
+            className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm"
+            onClick={() => textareaRef.current?.focus()}
+          >
             <textarea
               ref={textareaRef}
               value={draft}
@@ -164,6 +175,7 @@ function Chat() {
             <div className="mt-2 flex items-center justify-between">
               <button
                 type="button"
+                onClick={(event) => event.stopPropagation()}
                 aria-label="Attach an image"
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500"
               >
@@ -172,7 +184,10 @@ function Chat() {
               <button
                 type="button"
                 disabled={!draft.trim() || sendMutation.isPending}
-                onClick={handleSend}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  handleSend()
+                }}
                 aria-label="Send"
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
               >
