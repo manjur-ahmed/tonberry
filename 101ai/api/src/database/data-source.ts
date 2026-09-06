@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { User } from '../users/user.entity';
+import { Chat } from '../chats/chat.entity';
+import { Message } from '../chats/message.entity';
+import { Item } from '../items/item.entity';
 
 // DATABASE_URL (Neon, etc.) takes priority over discrete host/port/user/pass
 // — the latter is only for local Docker Compose Postgres.
@@ -21,6 +24,6 @@ const connectionOptions: DataSourceOptions = process.env.DATABASE_URL
 
 export default new DataSource({
   ...connectionOptions,
-  entities: [User],
+  entities: [User, Chat, Message, Item],
   migrations: ['src/database/migrations/*.ts'],
 });

@@ -19,6 +19,7 @@ export interface CurrentUser {
   email: string
   name: string | null
   plan: 'free' | 'plus' | 'premium' | null
+  country: string | null
 }
 
 export async function fetchMe(): Promise<CurrentUser | null> {
@@ -47,5 +48,19 @@ export async function setPlan(plan: 'free' | 'plus' | 'premium'): Promise<Curren
     body: JSON.stringify({ plan }),
   })
   if (!response.ok) throw new Error(`Failed to set plan: ${response.status}`)
+  return response.json()
+}
+
+export async function setCountry(country: string): Promise<CurrentUser> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/users/country`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ country }),
+  })
+  if (!response.ok) throw new Error(`Failed to set country: ${response.status}`)
   return response.json()
 }

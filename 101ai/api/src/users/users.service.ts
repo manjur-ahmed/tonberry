@@ -53,4 +53,11 @@ export class UsersService {
     if (!user) throw new Error('User not found after plan update');
     return user;
   }
+
+  async setCountry(id: string, country: string): Promise<User> {
+    await this.usersRepository.update({ id }, { country });
+    const user = await this.findById(id);
+    if (!user) throw new Error('User not found after country update');
+    return user;
+  }
 }
