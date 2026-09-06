@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { Check, Copy, ThumbsDown, ThumbsUp } from 'lucide-react'
+import SaveStatusIndicator from './SaveStatusIndicator'
+import type { SaveStatus } from '../tools/responseViews'
 
-function MessageActions({ content }: { content: string }) {
+function MessageActions({ content, saveStatus }: { content: string; saveStatus?: SaveStatus }) {
   const [copied, setCopied] = useState(false)
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
 
@@ -37,6 +39,7 @@ function MessageActions({ content }: { content: string }) {
       >
         <ThumbsDown className="h-4 w-4" strokeWidth={1.75} fill={feedback === 'down' ? 'currentColor' : 'none'} />
       </button>
+      {saveStatus && <SaveStatusIndicator status={saveStatus} />}
     </div>
   )
 }

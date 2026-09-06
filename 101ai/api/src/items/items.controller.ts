@@ -12,7 +12,7 @@ export class ItemsController {
 
   @Post('items')
   saveItem(@CurrentUser() user: User, @Body() dto: CreateItemDto) {
-    return this.itemsService.saveItem(user.id, dto.toolSlug, dto.chatId, dto.title, dto.data, dto.dedupKey);
+    return this.itemsService.saveItem(user.id, dto.toolSlug, dto.chatId, dto.title, dto.data, user.plan, dto.dedupKey);
   }
 
   @Get('tools/:slug/items')

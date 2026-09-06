@@ -25,6 +25,16 @@ async function authedFetch(path: string, options: RequestInit = {}): Promise<Res
   })
 }
 
+// Thrown instead of the generic error below when the save failed because
+// the user is on the free plan and already has the max items for this tool
+// — lets callers show the upgrade prompt only for this specific reason.
+export class ItemLimitReachedError extends Error {
+  constructor() {
+    super('Item limit reached for this plan')
+    this.name = 'ItemLimitReachedError'
+  }
+}
+
 // Upsert, not a plain create — passing a dedupKey that matches an existing
 // item (same tool, same user) updates it in place instead of duplicating it.
 // Omit dedupKey for tools with no natural "same thing" concept.
@@ -39,6 +49,10 @@ export async function saveItem(
     method: 'POST',
     body: JSON.stringify({ toolSlug, chatId, title, data, dedupKey }),
   })
+  if (response.status === 403) {
+    const body = await response.json().catch(() => null)
+    if (body?.code === 'ITEM_LIMIT_REACHED') throw new ItemLimitReachedError()
+  }
   if (!response.ok) throw new Error(`Failed to save item: ${response.status}`)
   return response.json()
 }

@@ -53,9 +53,12 @@ function ToolPage() {
       <h1 className="mt-6 font-display text-2xl font-semibold text-slate-900">{tool.name}</h1>
       <p className="mb-10 mt-2 text-slate-600">{tool.description}</p>
 
+      <p className="mt-auto mb-2 text-center text-xs text-slate-400">
+        You must be logged in to use this tool
+      </p>
       <Link
         to="/sign-in?mode=signup"
-        className="mt-auto block w-full rounded-full bg-slate-900 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700"
+        className="block w-full rounded-full bg-slate-900 py-3 text-center text-sm font-semibold text-white hover:bg-slate-700"
       >
         Create an account
       </Link>

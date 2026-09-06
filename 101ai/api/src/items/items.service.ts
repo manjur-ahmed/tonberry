@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Item } from './item.entity';
+import { UserPlan } from '../users/user.entity';
+import { ItemLimitReachedException } from './item-limit-reached.exception';
+
+// Must match the "5 items per tool" line in web/src/lib/plans.ts.
+const FREE_PLAN_ITEM_LIMIT = 5;
 
 @Injectable()
 export class ItemsService {
@@ -16,6 +21,7 @@ export class ItemsService {
     chatId: string | null | undefined,
     title: string,
     data: unknown,
+    plan: UserPlan | null,
     dedupKey?: string,
   ): Promise<Item> {
     if (dedupKey) {
@@ -26,6 +32,13 @@ export class ItemsService {
         if (chatId) existing.chatId = chatId;
         return this.itemsRepository.save(existing);
       }
+    }
+
+    // Plus/Premium get unlimited items — everyone else (free, or no plan
+    // yet) is capped per tool.
+    if (plan !== UserPlan.PLUS && plan !== UserPlan.PREMIUM) {
+      const count = await this.itemsRepository.count({ where: { userId, toolSlug } });
+      if (count >= FREE_PLAN_ITEM_LIMIT) throw new ItemLimitReachedException();
     }
 
     const item = this.itemsRepository.create({

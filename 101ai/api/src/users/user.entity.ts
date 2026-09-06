@@ -14,8 +14,15 @@ export class User {
   @Column({ unique: true })
   email: string;
 
+  // First name. Set on first Google sign-in (Phase 2), overwritten by the
+  // user's own input on /country (now the preferences page).
   @Column({ type: 'varchar', nullable: true })
   name: string | null;
+
+  // Anything after the first name typed into the preferences page — e.g.
+  // "Ada Lovelace Byron" stores "Ada" in `name` and "Lovelace Byron" here.
+  @Column({ name: 'other_names', type: 'varchar', nullable: true })
+  otherNames: string | null;
 
   // Set on first Google sign-in (Phase 2).
   @Column({ name: 'google_id', type: 'varchar', unique: true, nullable: true })
@@ -26,10 +33,14 @@ export class User {
   @Column({ type: 'enum', enum: UserPlan, nullable: true })
   plan: UserPlan | null;
 
-  // ISO 3166-1 alpha-2 code. Null until set on /country — that's the gate
-  // that sends a signed-in user with no country to /country before pricing.
+  // ISO 3166-1 alpha-2 code. Null until set on /country (now the preferences
+  // page) — that's the gate that sends a signed-in user with no country
+  // there before pricing.
   @Column({ type: 'varchar', length: 2, nullable: true })
   country: string | null;
+
+  @Column({ name: 'dark_theme', type: 'boolean', default: false })
+  darkTheme: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

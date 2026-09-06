@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import ToolCard from '../components/ToolCard'
@@ -14,6 +14,27 @@ function Home() {
   const [query, setQuery] = useState('')
   const [savedSlugs] = useState(() => getSavedSlugs())
   const [showChatsTooltip, setShowChatsTooltip] = useState(false)
+  const chatsRingRef = useRef<HTMLDivElement>(null)
+
+  // Auto-dismiss after 5s, or immediately on a tap outside the ring/tooltip.
+  // Clicks on the ring itself are excluded here — it already toggles via its
+  // own onClick, so also closing it here on the same click raced against
+  // that toggle and cancelled it out under rapid repeated taps.
+  useEffect(() => {
+    if (!showChatsTooltip) return
+
+    const timeout = setTimeout(() => setShowChatsTooltip(false), 5000)
+    function handleClickOutside(event: MouseEvent) {
+      if (chatsRingRef.current?.contains(event.target as Node)) return
+      setShowChatsTooltip(false)
+    }
+    document.addEventListener('click', handleClickOutside)
+
+    return () => {
+      clearTimeout(timeout)
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [showChatsTooltip])
 
   // The browser (Chrome/Safari alike) can restore a suspended tab at its
   // last scroll position instead of loading fresh — force the top on landing.
@@ -26,6 +47,9 @@ function Home() {
   const dailyChatsUsed = 0
   const dailyChatLimit = (getPlan(user?.plan) ?? plans[0]).dailyChats
   const chatsRemaining = dailyChatLimit - dailyChatsUsed
+  // A fully empty ring just looks like a plain circle — show a sliver so
+  // it reads as a progress indicator even at zero usage.
+  const ringProgress = Math.max(0.04, dailyChatsUsed / dailyChatLimit)
 
   const isSearching = query.trim().length > 0
   const savedTools = savedSlugs.map((slug) => getTool(slug)).filter((tool): tool is Tool => !!tool)
@@ -74,13 +98,13 @@ function Home() {
               <br />
               ready when you are
             </h1>
-            <div className="relative">
+            <div className="relative" ref={chatsRingRef}>
               <button
                 type="button"
                 onClick={() => setShowChatsTooltip((value) => !value)}
                 aria-label="Daily chats remaining"
               >
-                <ProgressRing progress={dailyChatsUsed / dailyChatLimit} />
+                <ProgressRing progress={ringProgress} />
               </button>
               {showChatsTooltip && (
                 <div className="absolute right-0 top-full z-10 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
