@@ -53,4 +53,14 @@ export class UsersService {
     if (!user) throw new Error('User not found after plan update');
     return user;
   }
+
+  async setPreferences(
+    id: string,
+    preferences: { name: string; otherNames: string | null; country: string; darkTheme: boolean },
+  ): Promise<User> {
+    await this.usersRepository.update({ id }, preferences);
+    const user = await this.findById(id);
+    if (!user) throw new Error('User not found after preferences update');
+    return user;
+  }
 }

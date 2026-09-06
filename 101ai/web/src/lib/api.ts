@@ -18,7 +18,10 @@ export interface CurrentUser {
   id: string
   email: string
   name: string | null
+  otherNames: string | null
   plan: 'free' | 'plus' | 'premium' | null
+  country: string | null
+  darkTheme: boolean
 }
 
 export async function fetchMe(): Promise<CurrentUser | null> {
@@ -47,5 +50,26 @@ export async function setPlan(plan: 'free' | 'plus' | 'premium'): Promise<Curren
     body: JSON.stringify({ plan }),
   })
   if (!response.ok) throw new Error(`Failed to set plan: ${response.status}`)
+  return response.json()
+}
+
+export interface Preferences {
+  name: string
+  otherNames?: string
+  country: string
+  darkTheme: boolean
+}
+
+export async function setPreferences(preferences: Preferences): Promise<CurrentUser> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/users/preferences`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(preferences),
+  })
+  if (!response.ok) throw new Error(`Failed to set preferences: ${response.status}`)
   return response.json()
 }

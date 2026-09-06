@@ -1,11 +1,15 @@
 import { Outlet } from 'react-router-dom'
-import Nav from './Nav'
+import BottomNav from './BottomNav'
 
 function Layout() {
   return (
     <div className="min-h-svh bg-white">
-      <Nav />
-      <Outlet />
+      <div className="relative mx-auto flex min-h-svh w-full max-w-md flex-col">
+        <div className="flex flex-1 flex-col">
+          <Outlet />
+        </div>
+        <BottomNav />
+      </div>
     </div>
   )
 }
