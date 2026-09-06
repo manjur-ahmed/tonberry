@@ -115,7 +115,7 @@ function Home() {
           </div>
         )}
 
-        {savedTools.length > 0 && (
+        {user && savedTools.length > 0 && (
           <div className="mb-10">
             <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
             <div className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -140,7 +140,9 @@ function Home() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search tools"
-            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            // text-base, not text-sm — avoids iOS Safari's auto-zoom-on-focus
+            // for inputs under 16px.
+            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
           />
         </div>
 

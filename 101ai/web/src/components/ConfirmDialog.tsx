@@ -26,7 +26,9 @@ function ConfirmDialog({ open, title, description, confirmLabel, onConfirm, onCa
   if (!open) return null
 
   return (
-    <div className="absolute inset-0 z-50 flex items-end justify-center bg-slate-900/40 px-4 pb-8 sm:items-center">
+    // fixed, not absolute — see ItemDetailModal for why (pins to the real
+    // viewport instead of the whole scrollable page).
+    <div className="fixed inset-0 z-50 mx-auto flex max-w-md items-end justify-center bg-slate-900/40 px-4 pb-8 sm:items-center">
       <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="font-display text-lg font-semibold text-slate-900">{title}</h2>
         <p className="mt-2 text-sm text-slate-600">{description}</p>

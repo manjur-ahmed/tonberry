@@ -13,6 +13,7 @@ import MessageActions from '../components/MessageActions'
 import GeneratingResponse from '../components/GeneratingResponse'
 import ItemLimitBanner from '../components/ItemLimitBanner'
 import { getResponseView, type SaveStatus } from '../tools/responseViews'
+import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
 const MAX_TEXTAREA_HEIGHT = 88 // ~4 lines at text-sm
 const NEAR_BOTTOM_THRESHOLD = 80 // px
@@ -33,6 +34,7 @@ function Chat() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const keyboardInset = useKeyboardInset()
 
   // ToolDashboard hands off a freshly-typed first message via router state
   // rather than creating the chat itself — that way the very first reply
@@ -41,6 +43,8 @@ function Chat() {
   const isNewChat = chatId === 'new'
   const firstMessage = isNewChat ? (location.state as { firstMessage?: string } | null)?.firstMessage : undefined
   const hasStartedNewChatRef = useRef(false)
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const pendingScrollIdRef = useRef<string | null>(null)
 
   const [draft, setDraft] = useState('')
   const [redirectSuggestion, setRedirectSuggestion] = useState<string | null>(null)
@@ -80,6 +84,20 @@ function Chat() {
     if (chat) requestAnimationFrame(() => scrollWindowToBottom())
   }, [chat?.id])
 
+  // After sending, scroll the new message to the top of the viewport rather
+  // than jumping to the bottom of the page — a long reply (e.g. a full word
+  // definition) should be read from its start, not land already scrolled
+  // past the end of it.
+  useEffect(() => {
+    const id = pendingScrollIdRef.current
+    if (!id) return
+    const el = messageRefs.current[id]
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      pendingScrollIdRef.current = null
+    }
+  }, [chat?.messages])
+
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
@@ -102,13 +120,15 @@ function Chat() {
     onMutate: (content: string) => {
       const previous = queryClient.getQueryData<ChatData>(['chat', chatId])
       if (previous) {
+        const optimisticId = `optimistic-${Date.now()}`
         queryClient.setQueryData<ChatData>(['chat', chatId], {
           ...previous,
           messages: [
             ...previous.messages,
-            { id: `optimistic-${Date.now()}`, role: 'user', content, createdAt: new Date().toISOString() },
+            { id: optimisticId, role: 'user', content, createdAt: new Date().toISOString() },
           ],
         })
+        pendingScrollIdRef.current = optimisticId
       }
       return { previous }
     },
@@ -126,7 +146,6 @@ function Chat() {
         navigate(`/tools/${tool!.slug}/chats/${result.chat.id}`, { replace: true })
       } else {
         queryClient.setQueryData(['chat', chatId], result.chat)
-        requestAnimationFrame(() => scrollWindowToBottom('smooth'))
       }
     },
     onError: (_error, content, context) => {
@@ -166,7 +185,6 @@ function Chat() {
     if (!draft.trim() || !chatId) return
     sendMutation.mutate(draft)
     setDraft('')
-    requestAnimationFrame(() => scrollWindowToBottom('smooth'))
   }
 
   if (!tool || (isNewChat ? !chat : isLoading)) {
@@ -188,7 +206,14 @@ function Chat() {
   const ResponseView = getResponseView(tool.slug)
 
   return (
-    <main className="px-4 pb-6">
+    // Extra bottom padding — the compose bar below is now `fixed`, so it no
+    // longer reserves its own space in flow; this keeps the last message
+    // from ending up hidden behind it. 224px is a static worst-case guess
+    // (compose bar at its tallest, ~156px when the textarea's grown to
+    // MAX_TEXTAREA_HEIGHT, plus the 64px gap above BottomNav it rests on)
+    // rather than the compose bar's real measured height, so there's some
+    // slack under the last message when the textarea is only one line.
+    <main className="px-4 pb-56">
       <div className="sticky top-0 z-10 -mx-4 bg-white px-4 pb-3 pt-6">
         <div className="flex items-center gap-3">
           <button
@@ -219,7 +244,15 @@ function Chat() {
       <div className="mt-3 space-y-4">
         {chat.messages.map((message) =>
           message.role === 'user' ? (
-            <div key={message.id} className="flex justify-end">
+            <div
+              key={message.id}
+              ref={(el) => {
+                messageRefs.current[message.id] = el
+              }}
+              // Clears the sticky header (~80px) so scrollIntoView's
+              // block: 'start' doesn't land the message underneath it.
+              className="flex scroll-mt-20 justify-end"
+            >
               <p className="max-w-[80%] rounded-2xl bg-slate-100 px-4 py-2.5 text-sm text-slate-900">
                 {message.content}
               </p>
@@ -246,15 +279,24 @@ function Chat() {
         )}
       </div>
 
-      {/* Pinned above BottomNav (64px) the same way BottomNav pins itself
-          to the viewport — see the scroll-context note above. */}
-      <div className="sticky bottom-16 z-10 mt-8">
+      {/* fixed, not sticky — sticky's offset is computed against the layout
+          viewport, which iOS doesn't shrink for the on-screen keyboard, so
+          it ended up placing this (and the send button in it) underneath
+          the keyboard instead of above it. bottom tracks the keyboard
+          inset directly; bottom-16 (64px, matching BottomNav's height) is
+          the resting position the rest of the time. mx-auto + max-w-md +
+          px-4 replicate the horizontal placement `main`'s own padding gave
+          it before it was taken out of flow. */}
+      <div
+        className="fixed inset-x-0 bottom-16 z-10 mx-auto max-w-md px-4"
+        style={{ bottom: keyboardInset > 0 ? keyboardInset : undefined }}
+      >
         {!isAtBottom && (
           <button
             type="button"
             onClick={() => scrollWindowToBottom('smooth')}
             aria-label="Scroll to latest"
-            className="absolute -top-14 right-0 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md"
+            className="absolute -top-14 right-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-md"
           >
             <ArrowDown className="h-4 w-4" strokeWidth={2} />
           </button>
@@ -273,7 +315,10 @@ function Chat() {
               onChange={(event) => setDraft(event.target.value)}
               placeholder={`How can ${tool.name} help you today?`}
               rows={1}
-              className="w-full resize-none overflow-y-auto bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              // text-base, not text-sm — iOS Safari auto-zooms the page on
+              // focus for any input/textarea under 16px, which is why
+              // sending a message used to leave the page zoomed in.
+              className="w-full resize-none overflow-y-auto bg-transparent text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
             />
             <div className="mt-2 flex items-center justify-between">
               <button

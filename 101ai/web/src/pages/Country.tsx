@@ -61,7 +61,9 @@ function Country() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Your name"
-            className="rounded-full border border-slate-200 bg-white/80 px-5 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            // text-base, not text-sm — avoids iOS Safari's auto-zoom-on-focus
+            // for inputs under 16px.
+            className="rounded-full border border-slate-200 bg-white/80 px-5 py-3 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
           />
         </label>
 
