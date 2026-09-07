@@ -57,6 +57,11 @@ function Chat() {
   const hasStartedNewChatRef = useRef(false)
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const pendingScrollIdRef = useRef<string | null>(null)
+  // Set right before the "new" -> real chat id swap below, so the
+  // load-scroll effect can tell "we just created this chat" apart from
+  // "the user navigated into an existing one" — both look like `chat?.id`
+  // changing, but only the latter should jump to the bottom.
+  const skipNextLoadScrollRef = useRef(false)
 
   const [draft, setDraft] = useState('')
   const [redirectSuggestion, setRedirectSuggestion] = useState<string | null>(null)
@@ -91,9 +96,20 @@ function Chat() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Jump to the latest message as soon as a chat loads.
+  // Jump to the latest message as soon as an *existing* chat loads. Skipped
+  // for a brand-new chat (isNewChat — there's no history to jump to yet,
+  // and it would otherwise race the "scroll new message to top" effect
+  // below) and skipped once right after we swap "new" for the real chat
+  // id, which looks like the same "chat?.id changed" trigger but isn't a
+  // real navigation.
   useEffect(() => {
-    if (chat) requestAnimationFrame(() => scrollWindowToBottom())
+    if (!chat) return
+    if (skipNextLoadScrollRef.current) {
+      skipNextLoadScrollRef.current = false
+      return
+    }
+    if (isNewChat) return
+    requestAnimationFrame(() => scrollWindowToBottom())
   }, [chat?.id])
 
   // After sending, scroll the new message to the top of the viewport rather
@@ -103,11 +119,12 @@ function Chat() {
   useEffect(() => {
     const id = pendingScrollIdRef.current
     if (!id) return
+    // Cleared unconditionally (not only when found) — an id that never
+    // resolves to a DOM node should be dropped, not left to potentially
+    // misfire against some unrelated later message.
+    pendingScrollIdRef.current = null
     const el = messageRefs.current[id]
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      pendingScrollIdRef.current = null
-    }
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }, [chat?.messages])
 
   useEffect(() => {
@@ -153,7 +170,10 @@ function Chat() {
       if (isNewChat) {
         // Swap "new" for the real chat id the backend just assigned —
         // seeding its cache first means this navigation doesn't cause a
-        // fresh loading flash, it just picks up where "new" left off.
+        // fresh loading flash, it just picks up where "new" left off. This
+        // makes chat?.id "change" the same way opening a different chat
+        // does, so tell the load-scroll effect not to treat it as one.
+        skipNextLoadScrollRef.current = true
         queryClient.setQueryData(['chat', result.chat.id], result.chat)
         navigate(`/tools/${tool!.slug}/chats/${result.chat.id}`, { replace: true })
       } else {

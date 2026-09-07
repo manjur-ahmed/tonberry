@@ -8,6 +8,7 @@ import { getChatsForTool } from '../lib/chats'
 import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { getItemView } from '../tools/itemViews'
 import ItemDetailModal from '../components/ItemDetailModal'
+import Skeleton from '../components/Skeleton'
 import { useAuth } from '../hooks/useAuth'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
@@ -28,13 +29,13 @@ function ToolDashboard() {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [openItemMenuId, setOpenItemMenuId] = useState<string | null>(null)
 
-  const { data: chats = [] } = useQuery({
+  const { data: chats = [], isLoading: isChatsLoading } = useQuery({
     queryKey: ['chats', tool?.slug],
     queryFn: () => getChatsForTool(tool!.slug),
     enabled: !!tool && !!user,
   })
 
-  const { data: items = [] } = useQuery({
+  const { data: items = [], isLoading: isItemsLoading } = useQuery({
     queryKey: ['items', tool?.slug],
     queryFn: () => getItemsForTool(tool!.slug),
     enabled: !!tool && !!user,
@@ -84,22 +85,32 @@ function ToolDashboard() {
 
       <p className="mt-3 text-sm text-slate-600">{tool?.description}</p>
 
-      {chats.length > 0 && (
+      {user && isChatsLoading ? (
+        // Reserves the "Continue chat" card's space while we don't yet
+        // know if there'll be one — swapping straight from nothing to a
+        // populated card (or the reverse) is what caused the page-jump.
         <div className="mt-8">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Continue chat</h2>
-          <Link
-            to={`/tools/${tool?.slug}/chats/${chats[0].id}`}
-            className="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{chats[0].title}</p>
-              {chats[0].lastMessagePreview && (
-                <p className="mt-1 truncate text-sm text-slate-500">{chats[0].lastMessagePreview}</p>
-              )}
-            </div>
-            <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-400" strokeWidth={1.75} />
-          </Link>
+          <Skeleton className="mt-3 h-20" />
         </div>
+      ) : (
+        chats.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Continue chat</h2>
+            <Link
+              to={`/tools/${tool?.slug}/chats/${chats[0].id}`}
+              className="mt-3 flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-900">{chats[0].title}</p>
+                {chats[0].lastMessagePreview && (
+                  <p className="mt-1 truncate text-sm text-slate-500">{chats[0].lastMessagePreview}</p>
+                )}
+              </div>
+              <ChevronRight className="h-5 w-5 flex-shrink-0 text-slate-400" strokeWidth={1.75} />
+            </Link>
+          </div>
+        )
       )}
 
       <div className="mt-8 flex border-b border-slate-200">
@@ -119,7 +130,12 @@ function ToolDashboard() {
 
       <div className="mt-8 text-sm text-slate-500">
         {tab === 'Items' &&
-          (items.length === 0 ? (
+          (isItemsLoading ? (
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton className="h-32" />
+              <Skeleton className="h-32" />
+            </div>
+          ) : items.length === 0 ? (
             <p>No items saved yet. Anything worth keeping from a chat will show up here.</p>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -166,7 +182,12 @@ function ToolDashboard() {
             </div>
           ))}
         {tab === 'Chats' &&
-          (chats.length === 0 ? (
+          (isChatsLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : chats.length === 0 ? (
             <p>No chats yet. Start one to see it here.</p>
           ) : (
             <div className="space-y-2">
