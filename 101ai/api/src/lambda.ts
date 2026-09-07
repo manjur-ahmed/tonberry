@@ -20,7 +20,12 @@ async function bootstrap(): Promise<Handler> {
     AppModule,
     new FastifyAdapter(),
   );
-  app.enableCors({ methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'] });
+  // No app.enableCors() here — API Gateway's native HTTP API CORS config
+  // (see cors_configuration on aws_apigatewayv2_api.api in Terraform)
+  // answers OPTIONS preflights directly, without invoking this Lambda at
+  // all. Setting CORS headers here too would duplicate them on real
+  // responses. main.ts (local dev, which talks to this Nest app directly
+  // with no API Gateway in front) still calls enableCors() itself.
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();
   return awsLambdaFastify(app.getHttpAdapter().getInstance());
