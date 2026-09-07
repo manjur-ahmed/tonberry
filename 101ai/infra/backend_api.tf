@@ -32,11 +32,7 @@ resource "aws_lambda_function" "api" {
   runtime          = "nodejs22.x"
   role             = aws_iam_role.lambda_exec.arn
   timeout          = 15
-  # 512MB got well under 1 vCPU (1,769MB = 1 vCPU) — the NestJS DI bootstrap
-  # during a cold start is CPU-bound, so it was starved of compute right
-  # when it needed it most. More memory here isn't necessarily more $: cost
-  # is memory x duration, and a faster cold start offsets the higher rate.
-  memory_size      = 1024
+  memory_size      = 512
 
   environment {
     variables = {
@@ -56,19 +52,6 @@ resource "aws_lambda_function" "api" {
 resource "aws_apigatewayv2_api" "api" {
   name          = "tonberry-101ai-api-${var.environment}"
   protocol_type = "HTTP"
-
-  # HTTP APIs can answer CORS preflight (OPTIONS) directly at the gateway,
-  # without invoking the Lambda at all — previously CORS was handled inside
-  # NestJS (app.enableCors), meaning every single preflight was itself a
-  # Lambda invocation (and a cold-start risk). max_age lets the browser
-  # cache the preflight decision so it skips OPTIONS entirely on repeat
-  # calls within the window, not just make it cheaper when it does happen.
-  cors_configuration {
-    allow_origins = ["https://101ai.tonberry.co.uk"]
-    allow_methods = ["GET", "HEAD", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"]
-    allow_headers = ["authorization", "content-type"]
-    max_age       = 86400
-  }
 }
 
 resource "aws_apigatewayv2_integration" "api" {
