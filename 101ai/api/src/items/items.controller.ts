@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ItemsService } from './items.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -12,7 +20,15 @@ export class ItemsController {
 
   @Post('items')
   saveItem(@CurrentUser() user: User, @Body() dto: CreateItemDto) {
-    return this.itemsService.saveItem(user.id, dto.toolSlug, dto.chatId, dto.title, dto.data, user.plan, dto.dedupKey);
+    return this.itemsService.saveItem(
+      user.id,
+      dto.toolSlug,
+      dto.chatId,
+      dto.title,
+      dto.data,
+      user.plan,
+      dto.dedupKey,
+    );
   }
 
   @Get('tools/:slug/items')

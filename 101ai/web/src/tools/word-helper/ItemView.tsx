@@ -21,8 +21,8 @@ function WordHelperItemView({ title, data }: { title: string; data: unknown }) {
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h3 className="font-display text-2xl font-bold text-slate-900">{data.word}</h3>
-      {data.phonetic && <p className="mt-0.5 text-sm text-slate-400">/{data.phonetic}/</p>}
+      <h3 className="font-display text-2xl font-bold text-slate-900">{data.word.toLowerCase()}</h3>
+      {data.phonetic && <p className="mt-0.5 text-sm text-slate-400">{data.phonetic}</p>}
       {data.shortDefinition && (
         <p className="mt-2 text-sm font-semibold text-slate-900">{data.shortDefinition}</p>
       )}

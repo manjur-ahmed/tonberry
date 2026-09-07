@@ -6,10 +6,12 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ChatsModule } from './chats/chats.module';
 import { ItemsModule } from './items/items.module';
+import { UsageLogsModule } from './usage-logs/usage-logs.module';
 import { User } from './users/user.entity';
 import { Chat } from './chats/chat.entity';
 import { Message } from './chats/message.entity';
 import { Item } from './items/item.entity';
+import { UsageLog } from './usage-logs/usage-log.entity';
 
 @Module({
   imports: [
@@ -20,7 +22,7 @@ import { Item } from './items/item.entity';
         const databaseUrl = config.get<string>('DATABASE_URL');
         return {
           type: 'postgres' as const,
-          entities: [User, Chat, Message, Item],
+          entities: [User, Chat, Message, Item, UsageLog],
           // Migrations only (src/database/migrations) — never auto-sync.
           synchronize: false,
           ...(databaseUrl
@@ -40,6 +42,7 @@ import { Item } from './items/item.entity';
     AuthModule,
     ChatsModule,
     ItemsModule,
+    UsageLogsModule,
   ],
 })
 export class AppModule {}

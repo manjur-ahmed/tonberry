@@ -63,7 +63,12 @@ export class UsersService {
 
   async setPreferences(
     id: string,
-    preferences: { name: string; otherNames: string | null; country: string; darkTheme: boolean },
+    preferences: {
+      name: string;
+      otherNames: string | null;
+      country: string;
+      darkTheme: boolean;
+    },
   ): Promise<User> {
     await this.usersRepository.update({ id }, preferences);
     const user = await this.findById(id);

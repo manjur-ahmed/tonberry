@@ -1,31 +1,108 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import OpenAI from 'openai';
 import { getToolConfig } from '../tools/tool-config';
+import { UsageLogsService } from '../usage-logs/usage-logs.service';
 
-// Placeholder for the real OpenAI integration. Every tool currently
-// returns a fixed canned reply regardless of what's asked — swap the body
-// of generateReply for a real chat completion call (using getToolConfig's
-// model/systemPrompt) once the UI + data shape are settled.
+// Worst-case cost guard — comfortably covers a structured reply (a
+// definition plus a few examples/synonyms) on gpt-4o-mini.
+const MAX_COMPLETION_TOKENS = 500;
+
+// Bounds how much prior conversation gets sent on a long chat — a simple
+// recency cutoff, not real pruning/summarization. Plenty for any chat this
+// app produces today.
+const MAX_HISTORY_MESSAGES = 20;
+
+const PLACEHOLDER_REPLY =
+  "This is a placeholder response — real AI replies aren't wired up yet.";
+
+export interface HistoryMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface GenerateReplyParams {
+  toolSlug: string;
+  message: string;
+  // Prior turns in this chat, oldest first, not including `message` itself
+  // — without this every reply is stateless regardless of plan (see
+  // chats.service.ts callers for where it comes from).
+  history: HistoryMessage[];
+  userId: string;
+  chatId: string;
+  messageId: string;
+}
+
 @Injectable()
 export class OpenAiService {
-  generateReply(toolSlug: string, _message: string): string {
-    getToolConfig(toolSlug); // config is wired up, just unused until real calls happen
+  private readonly client: OpenAI;
 
-    if (toolSlug === 'word-helper') {
-      // Structured, not prose — Word Helper's frontend ResponseView parses
-      // this shape to render the definition card. Every message returns
-      // the same "happy" payload for now, regardless of what's asked.
-      return JSON.stringify({
-        word: 'happy',
-        phonetic: 'ˈhæp.i',
-        shortDefinition: 'Feeling pleased, satisfied, or joyful.',
-        meaning:
-          'A positive emotional state characterized by joy, contentment, and satisfaction. It can also describe being pleased with a result or fortunate in a situation.',
-        examples: ['She felt happy to see her friends again.', "I'm happy with the result."],
-        synonyms: ['joyful', 'cheerful', 'delighted', 'content'],
-        wordType: 'Adjective',
-        related: ['happily', 'happiness'],
+  constructor(
+    config: ConfigService,
+    private readonly usageLogs: UsageLogsService,
+  ) {
+    this.client = new OpenAI({ apiKey: config.get<string>('OPENAI_API_KEY') });
+  }
+
+  // Config-driven, not a per-tool branch — any slug with a TOOL_DEFINITIONS
+  // entry (see tool-config.ts) gets a real call here, structured
+  // (json_schema, strict) if it declares a responseSchema, plain text
+  // otherwise. A slug with no entry gets the canned placeholder (and no
+  // usage log — there's nothing to log).
+  async generateReply(params: GenerateReplyParams): Promise<string> {
+    const config = getToolConfig(params.toolSlug);
+    if (!config) return PLACEHOLDER_REPLY;
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: config.model,
+        messages: [
+          { role: 'system', content: config.systemPrompt },
+          ...params.history.slice(-MAX_HISTORY_MESSAGES).map((entry) => ({
+            role: entry.role,
+            content: entry.content,
+          })),
+          { role: 'user', content: params.message },
+        ],
+        max_completion_tokens: MAX_COMPLETION_TOKENS,
+        response_format: config.responseSchema
+          ? {
+              type: 'json_schema',
+              json_schema: {
+                name: config.responseSchema.name,
+                strict: true,
+                schema: config.responseSchema.schema,
+              },
+            }
+          : { type: 'text' },
       });
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('Empty response from OpenAI');
+
+      const usage = response.usage;
+      if (usage) {
+        // config.model (what we requested), not response.model (the
+        // specific dated snapshot OpenAI actually served) — MODEL_PRICING
+        // is keyed by the request-time name, so this is what actually
+        // resolves to a price.
+        await this.usageLogs.record({
+          userId: params.userId,
+          chatId: params.chatId,
+          messageId: params.messageId,
+          toolSlug: params.toolSlug,
+          model: config.model,
+          promptTokens: usage.prompt_tokens,
+          completionTokens: usage.completion_tokens,
+          totalTokens: usage.total_tokens,
+          cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+        });
+      }
+
+      return content;
+    } catch {
+      throw new InternalServerErrorException(
+        'Could not generate a reply — try again.',
+      );
     }
-    return "This is a placeholder response — real AI replies aren't wired up yet.";
   }
 }

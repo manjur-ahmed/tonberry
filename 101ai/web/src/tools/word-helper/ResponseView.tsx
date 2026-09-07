@@ -13,14 +13,25 @@ interface WordDefinition {
   meaning: string
   examples: string[]
   synonyms: string[]
-  wordType: string
-  related: string[]
 }
 
+// `kind: 'chat'` replies (greetings, small talk — see tool-config.ts) carry
+// the same envelope with the definition fields null and the reply text in
+// `reply` instead; only a 'definition' reply renders as a definition or
+// gets auto-saved. `kind` is missing on messages saved before this field
+// existed — treat that as a (legacy) definition too, rather than failing
+// the check and dumping raw JSON for old chat history.
 function isWordDefinition(value: unknown): value is WordDefinition {
   if (!value || typeof value !== 'object') return false
   const data = value as Record<string, unknown>
+  if (data.kind === 'chat') return false
   return typeof data.word === 'string' && typeof data.meaning === 'string'
+}
+
+function getChatReply(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null
+  const data = value as Record<string, unknown>
+  return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
 function Label({ children }: { children: string }) {
@@ -29,9 +40,14 @@ function Label({ children }: { children: string }) {
 
 function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
   let data: WordDefinition | null = null
+  let chatReply: string | null = null
   try {
     const parsed = JSON.parse(content)
-    if (isWordDefinition(parsed)) data = parsed
+    // Lowercased here rather than relying on the model to always return it
+    // that way — enforced once, at the one place every downstream use
+    // (heading, saved item title) reads from.
+    if (isWordDefinition(parsed)) data = { ...parsed, word: parsed.word.toLowerCase() }
+    else chatReply = getChatReply(parsed)
   } catch {
     data = null
   }
@@ -81,12 +97,13 @@ function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  if (chatReply) return <DefaultResponse content={chatReply} toolSlug={toolSlug} chatId={chatId} messageId={messageId} />
   if (!data) return <DefaultResponse content={content} toolSlug={toolSlug} chatId={chatId} messageId={messageId} />
 
   return (
     <div>
       <h2 className="font-display text-4xl font-bold text-slate-900">{data.word}</h2>
-      <p className="mt-1 text-sm text-slate-400">/{data.phonetic}/</p>
+      <p className="mt-1 text-sm text-slate-400">{data.phonetic}</p>
       <p className="mt-3 font-semibold text-slate-900">{data.shortDefinition}</p>
 
       <div className="mt-6">
@@ -107,18 +124,8 @@ function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, on
       </div>
 
       <div className="mt-6">
-        <Label>Synonyms</Label>
+        <Label>Similar words</Label>
         <p className="mt-2 text-sm text-slate-700">{data.synonyms.join(' • ')}</p>
-      </div>
-
-      <div className="mt-6">
-        <Label>Word Type</Label>
-        <p className="mt-2 text-sm text-slate-700">{data.wordType}</p>
-      </div>
-
-      <div className="mt-6">
-        <Label>Related</Label>
-        <p className="mt-2 text-sm text-slate-700">{data.related.join(' • ')}</p>
       </div>
     </div>
   )

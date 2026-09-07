@@ -1,4 +1,10 @@
-export const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+// Falls back to whatever host the page itself was loaded from (with the
+// API's port) rather than a hardcoded 'localhost' — that way the same dev
+// build works correctly whether you open it as localhost or over a LAN IP
+// (e.g. testing from a phone), with no manual syncing when the LAN IP
+// changes (DHCP renewal, reconnecting to Wi-Fi, etc). VITE_API_URL still
+// wins if explicitly set (e.g. prod's real api.* domain).
+export const API_URL = import.meta.env.VITE_API_URL ?? `http://${window.location.hostname}:3001`
 
 const TOKEN_KEY = '101ai_token'
 
@@ -108,5 +114,34 @@ export async function setPassword(newPassword: string): Promise<CurrentUser> {
     body: JSON.stringify({ newPassword }),
   })
   if (!response.ok) throw new Error(await readErrorMessage(response, 'Could not update password — try again.'))
+  return response.json()
+}
+
+export type UsageRange = '7d' | '30d' | '90d'
+
+export interface UsageSummary {
+  range: UsageRange
+  perResponse: { averageCostUsd: number; count: number }
+  perChat: { averageCostUsd: number; chatCount: number }
+  perUser: { averageCostUsd: number; userCount: number }
+  timeSeries: { date: string; totalCostUsd: number; requestCount: number }[]
+  byModel: { model: string; totalCostUsd: number; totalTokens: number; requestCount: number }[]
+  byPlan: {
+    plan: 'free' | 'plus' | 'premium' | null
+    totalCostUsd: number
+    avgCostPerResponseUsd: number
+    requestCount: number
+    userCount: number
+  }[]
+}
+
+// 403s for any logged-in user other than the one AdminGuard allows — the
+// page calling this treats that as "not authorized", not an error.
+export async function getUsageSummary(range: UsageRange): Promise<UsageSummary> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/admin/usage/summary?range=${range}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(`Failed to load usage summary: ${response.status}`)
   return response.json()
 }

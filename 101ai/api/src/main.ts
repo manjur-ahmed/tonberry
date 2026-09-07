@@ -13,10 +13,10 @@ async function bootstrap() {
   );
   // Fastify's CORS default methods list is just GET,HEAD,POST — missing
   // PATCH/PUT/DELETE, unlike the Express `cors` package's default.
-  app.enableCors({ methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'] });
-  app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
-  );
+  app.enableCors({
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'],
+  });
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   const port = process.env.PORT ?? 3001;
   await app.listen(port, '0.0.0.0');
 }

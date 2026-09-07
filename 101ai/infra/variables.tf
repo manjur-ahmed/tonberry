@@ -30,3 +30,8 @@ variable "openai_api_key" {
   type      = string
   sensitive = true
 }
+
+variable "admin_email" {
+  description = "The one email allowed to hit /admin/usage/* (see AdminGuard)"
+  type        = string
+}

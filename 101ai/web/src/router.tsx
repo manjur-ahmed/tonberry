@@ -11,6 +11,7 @@ import ChangePassword from './pages/ChangePassword'
 import Recent from './pages/Recent'
 import Country from './pages/Country'
 import AuthCallback from './pages/AuthCallback'
+import AdminUsage from './pages/AdminUsage'
 
 export const router = createBrowserRouter([
   {
@@ -27,6 +28,7 @@ export const router = createBrowserRouter([
       { path: '/settings/password', element: <ChangePassword /> },
       { path: '/recent', element: <Recent /> },
       { path: '/auth/callback', element: <AuthCallback /> },
+      { path: '/admin/usage', element: <AdminUsage /> },
     ],
   },
 ])

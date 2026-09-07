@@ -20,7 +20,10 @@ export class UsersController {
 
   @Patch('preferences')
   @UseGuards(JwtAuthGuard)
-  async setPreferences(@CurrentUser() user: User, @Body() dto: SetPreferencesDto) {
+  async setPreferences(
+    @CurrentUser() user: User,
+    @Body() dto: SetPreferencesDto,
+  ) {
     const updated = await this.usersService.setPreferences(user.id, {
       name: dto.name,
       otherNames: dto.otherNames ?? null,
@@ -33,7 +36,10 @@ export class UsersController {
   @Patch('password')
   @UseGuards(JwtAuthGuard)
   async setPassword(@CurrentUser() user: User, @Body() dto: SetPasswordDto) {
-    const updated = await this.usersService.setPassword(user.id, dto.newPassword);
+    const updated = await this.usersService.setPassword(
+      user.id,
+      dto.newPassword,
+    );
     return toPublicUser(updated);
   }
 }
