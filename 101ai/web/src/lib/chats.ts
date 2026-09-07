@@ -6,6 +6,10 @@ export interface ChatMessage {
   id: string
   role: MessageRole
   content: string
+  // True only for the item card a chat started via "Start a chat about
+  // this" is seeded with — Chat.tsx renders that one as a compact item
+  // card instead of the tool's normal (long) ResponseView.
+  isItemCard: boolean
   createdAt: string
 }
 
@@ -41,6 +45,12 @@ export async function createChat(toolSlug: string, message: string): Promise<Cha
     body: JSON.stringify({ message }),
   })
   if (!response.ok) throw new Error(`Failed to create chat: ${response.status}`)
+  return response.json()
+}
+
+export async function startChatFromItem(itemId: string): Promise<ChatResult> {
+  const response = await authedFetch(`/items/${itemId}/start-chat`, { method: 'POST' })
+  if (!response.ok) throw new Error(`Failed to start chat: ${response.status}`)
   return response.json()
 }
 

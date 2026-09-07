@@ -15,7 +15,9 @@ export class GoogleOAuthService {
   constructor(private readonly config: ConfigService) {}
 
   private get clientId(): string {
-    return this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') || 'not-configured';
+    return (
+      this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') || 'not-configured'
+    );
   }
 
   private get clientSecret(): string {

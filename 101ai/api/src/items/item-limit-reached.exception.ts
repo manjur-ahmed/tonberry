@@ -5,6 +5,9 @@ import { ForbiddenException } from '@nestjs/common';
 // failure and show the upgrade prompt only for this one.
 export class ItemLimitReachedException extends ForbiddenException {
   constructor() {
-    super({ code: 'ITEM_LIMIT_REACHED', message: 'Item limit reached for this plan' });
+    super({
+      code: 'ITEM_LIMIT_REACHED',
+      message: 'Item limit reached for this plan',
+    });
   }
 }

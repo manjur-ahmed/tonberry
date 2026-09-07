@@ -12,12 +12,28 @@ export class ChatsController {
   constructor(private readonly chatsService: ChatsService) {}
 
   @Post('tools/:slug/chats')
-  createChat(@CurrentUser() user: User, @Param('slug') slug: string, @Body() dto: CreateChatDto) {
+  createChat(
+    @CurrentUser() user: User,
+    @Param('slug') slug: string,
+    @Body() dto: CreateChatDto,
+  ) {
     return this.chatsService.createChat(user.id, slug, dto.message);
   }
 
+  @Post('items/:itemId/start-chat')
+  startChatFromItem(
+    @CurrentUser() user: User,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.chatsService.createChatFromItem(user.id, itemId);
+  }
+
   @Post('chats/:chatId/messages')
-  addMessage(@CurrentUser() user: User, @Param('chatId') chatId: string, @Body() dto: AddMessageDto) {
+  addMessage(
+    @CurrentUser() user: User,
+    @Param('chatId') chatId: string,
+    @Body() dto: AddMessageDto,
+  ) {
     return this.chatsService.addMessage(user.id, chatId, dto.content);
   }
 

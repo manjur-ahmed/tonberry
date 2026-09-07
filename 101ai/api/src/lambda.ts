@@ -20,7 +20,9 @@ async function bootstrap(): Promise<Handler> {
     AppModule,
     new FastifyAdapter(),
   );
-  app.enableCors({ methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'] });
+  app.enableCors({
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'],
+  });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   await app.init();
   return awsLambdaFastify(app.getHttpAdapter().getInstance());

@@ -5,14 +5,20 @@ import { Message } from './message.entity';
 import { ChatsService } from './chats.service';
 import { ChatsController } from './chats.controller';
 import { RouterService } from '../router/router.service';
-import { OpenAiService } from '../openai/openai.service';
+import { OpenAiModule } from '../openai/openai.module';
+import { ItemsModule } from '../items/items.module';
 
-// RouterService and OpenAiService are registered here rather than in their
-// own modules — they're small stubs today. Split them out once either
-// grows real config (an OpenAI API key/client, etc.).
+// RouterService stays a plain provider here — still a stub. OpenAiService
+// graduated to its own module once it grew real config (an API key/client).
+// ItemsModule is imported (not re-exported) purely so ChatsService can look
+// up a saved item when starting a chat from it (createChatFromItem).
 @Module({
-  imports: [TypeOrmModule.forFeature([Chat, Message])],
+  imports: [
+    TypeOrmModule.forFeature([Chat, Message]),
+    OpenAiModule,
+    ItemsModule,
+  ],
   controllers: [ChatsController],
-  providers: [ChatsService, RouterService, OpenAiService],
+  providers: [ChatsService, RouterService],
 })
 export class ChatsModule {}

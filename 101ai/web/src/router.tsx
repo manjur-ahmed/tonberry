@@ -7,9 +7,11 @@ import Chat from './pages/Chat'
 import SignIn from './pages/SignIn'
 import Pricing from './pages/Pricing'
 import Settings from './pages/Settings'
+import ChangePassword from './pages/ChangePassword'
 import Recent from './pages/Recent'
 import Country from './pages/Country'
 import AuthCallback from './pages/AuthCallback'
+import AdminUsage from './pages/AdminUsage'
 
 export const router = createBrowserRouter([
   {
@@ -23,8 +25,10 @@ export const router = createBrowserRouter([
       { path: '/pricing', element: <Pricing /> },
       { path: '/country', element: <Country /> },
       { path: '/settings', element: <Settings /> },
+      { path: '/settings/password', element: <ChangePassword /> },
       { path: '/recent', element: <Recent /> },
       { path: '/auth/callback', element: <AuthCallback /> },
+      { path: '/admin/usage', element: <AdminUsage /> },
     ],
   },
 ])

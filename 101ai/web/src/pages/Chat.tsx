@@ -13,6 +13,7 @@ import MessageActions from '../components/MessageActions'
 import GeneratingResponse from '../components/GeneratingResponse'
 import ItemLimitBanner from '../components/ItemLimitBanner'
 import { getResponseView, type SaveStatus } from '../tools/responseViews'
+import { getItemView } from '../tools/itemViews'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
 const MAX_TEXTAREA_HEIGHT = 88 // ~4 lines at text-sm
@@ -24,6 +25,17 @@ const NEAR_BOTTOM_THRESHOLD = 80 // px
 // tracks window scroll instead of an isolated element's.
 function scrollWindowToBottom(behavior: ScrollBehavior = 'auto') {
   window.scrollTo({ top: document.documentElement.scrollHeight, behavior })
+}
+
+// Item-card messages are always server-generated JSON (see
+// ChatsService.createChatFromItem) — the try/catch is defensive, not
+// expected to trigger.
+function parseItemCardData(content: string): unknown {
+  try {
+    return JSON.parse(content)
+  } catch {
+    return null
+  }
 }
 
 function Chat() {
@@ -125,7 +137,7 @@ function Chat() {
           ...previous,
           messages: [
             ...previous.messages,
-            { id: optimisticId, role: 'user', content, createdAt: new Date().toISOString() },
+            { id: optimisticId, role: 'user', content, isItemCard: false, createdAt: new Date().toISOString() },
           ],
         })
         pendingScrollIdRef.current = optimisticId
@@ -204,6 +216,7 @@ function Chat() {
   }
 
   const ResponseView = getResponseView(tool.slug)
+  const ItemView = getItemView(tool.slug)
 
   return (
     // Extra bottom padding — the compose bar below is now `fixed`, so it no
@@ -256,6 +269,13 @@ function Chat() {
               <p className="max-w-[80%] rounded-2xl bg-slate-100 px-4 py-2.5 text-sm text-slate-900">
                 {message.content}
               </p>
+            </div>
+          ) : message.isItemCard ? (
+            // ItemView already draws its own border/background/padding
+            // (see WordHelperItemView) — this wrapper only adds the shadow,
+            // rather than nesting a second bordered box around it.
+            <div key={message.id} className="rounded-2xl shadow-md shadow-slate-300/40">
+              <ItemView title={tool.name} data={parseItemCardData(message.content)} />
             </div>
           ) : (
             <div key={message.id}>

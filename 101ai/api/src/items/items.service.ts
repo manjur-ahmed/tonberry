@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Item } from './item.entity';
@@ -25,7 +25,9 @@ export class ItemsService {
     dedupKey?: string,
   ): Promise<Item> {
     if (dedupKey) {
-      const existing = await this.itemsRepository.findOne({ where: { userId, toolSlug, dedupKey } });
+      const existing = await this.itemsRepository.findOne({
+        where: { userId, toolSlug, dedupKey },
+      });
       if (existing) {
         existing.title = title;
         existing.data = data;
@@ -37,7 +39,9 @@ export class ItemsService {
     // Plus/Premium get unlimited items — everyone else (free, or no plan
     // yet) is capped per tool.
     if (plan !== UserPlan.PLUS && plan !== UserPlan.PREMIUM) {
-      const count = await this.itemsRepository.count({ where: { userId, toolSlug } });
+      const count = await this.itemsRepository.count({
+        where: { userId, toolSlug },
+      });
       if (count >= FREE_PLAN_ITEM_LIMIT) throw new ItemLimitReachedException();
     }
 
@@ -69,5 +73,13 @@ export class ItemsService {
   async deleteItem(userId: string, itemId: string): Promise<void> {
     // Scoped to userId so a user can't delete another user's item by guessing its id.
     await this.itemsRepository.delete({ id: itemId, userId });
+  }
+
+  async getOwnedItem(userId: string, itemId: string): Promise<Item> {
+    const item = await this.itemsRepository.findOne({
+      where: { id: itemId, userId },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    return item;
   }
 }

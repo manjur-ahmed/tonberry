@@ -1,4 +1,10 @@
-import { IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+} from 'class-validator';
 
 export class CreateItemDto {
   @IsString()

@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import * as bcrypt from 'bcrypt';
 import { User, UserPlan } from './user.entity';
+
+const PASSWORD_HASH_ROUNDS = 10;
 
 export interface GoogleProfile {
   googleId: string;
@@ -18,6 +21,10 @@ export class UsersService {
 
   findById(id: string): Promise<User | null> {
     return this.usersRepository.findOneBy({ id });
+  }
+
+  findByEmail(email: string): Promise<User | null> {
+    return this.usersRepository.findOneBy({ email });
   }
 
   async findOrCreateFromGoogle(profile: GoogleProfile): Promise<User> {
@@ -56,11 +63,24 @@ export class UsersService {
 
   async setPreferences(
     id: string,
-    preferences: { name: string; otherNames: string | null; country: string; darkTheme: boolean },
+    preferences: {
+      name: string;
+      otherNames: string | null;
+      country: string;
+      darkTheme: boolean;
+    },
   ): Promise<User> {
     await this.usersRepository.update({ id }, preferences);
     const user = await this.findById(id);
     if (!user) throw new Error('User not found after preferences update');
     return user;
+  }
+
+  async setPassword(id: string, newPassword: string): Promise<User> {
+    const passwordHash = await bcrypt.hash(newPassword, PASSWORD_HASH_ROUNDS);
+    await this.usersRepository.update({ id }, { passwordHash });
+    const updated = await this.findById(id);
+    if (!updated) throw new Error('User not found after password update');
+    return updated;
   }
 }
