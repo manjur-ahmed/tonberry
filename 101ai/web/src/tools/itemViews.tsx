@@ -6,6 +6,7 @@ import BookRecommendationsItemView from './book-recommendations/ItemView'
 import MusicRecommendationsItemView from './music-recommendations/ItemView'
 import QuoteFinderItemView from './quote-finder/ItemView'
 import StoryExplainerItemView from './story-explainer/ItemView'
+import TopicExplainerItemView from './topic-explainer/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -21,6 +22,8 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'music-recommendations': MusicRecommendationsItemView,
   'quote-finder': QuoteFinderItemView,
   'story-explainer': StoryExplainerItemView,
+  'science-explainer': TopicExplainerItemView,
+  'history-helper': TopicExplainerItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

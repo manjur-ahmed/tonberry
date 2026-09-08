@@ -326,6 +326,70 @@ const QUOTE_FINDER_SCHEMA: ResponseSchema = {
   },
 };
 
+// Shared by science-explainer and history-helper — both save one item per
+// *chat*, not one per reply (see ItemsService.upsertSection): a rabbit-hole
+// conversation covering several angles on one broad subject should read
+// back as one document with subheadings, not a pile of items each
+// overwriting the last. `sectionAction` mirrors word-helper's existing
+// same-word/different-word `kind` distinction, one level down: 'continue'
+// only for a direct follow-up on the exact same specific point just
+// discussed (appended onto that subheading server-side, never replacing
+// it — see the task text below); 'new' for a different specific question
+// or angle, even within the same broad topic. `topicTitle` is the umbrella
+// subject and is only actually consumed on the *first* reply saved in a
+// chat (see ItemsService.upsertSection) — later replies still have to
+// supply it (strict json_schema requires every field every time), but it's
+// otherwise ignored once the item exists. Same 'kind' escape hatch as every
+// other tool, for the same reason: strict json_schema can't leave the rest
+// null for a plain "hi" or a request that hasn't named a topic yet.
+const TOPIC_EXPLAINER_SCHEMA: ResponseSchema = {
+  name: 'topic_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: { type: ['string', 'null'], enum: ['new', 'continue', null] },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Shared by science-explainer and history-helper's task text below —
+// spelled out once so the two tools' prompts can't drift out of sync on
+// the part that isn't actually subject-specific. formattingInstruction is
+// the one genuinely per-tool piece: what to bold/italicize in sectionBody
+// (see web/src/tools/topic-explainer/ResponseView.tsx's renderInline for
+// the matching **bold**/*italic* markdown-subset renderer — this is the
+// only markup either tool should ever produce, nothing else is parsed).
+function buildTopicExplainerTask(
+  subjectNoun: string,
+  formattingInstruction: string,
+): string {
+  return [
+    `You help the user understand a ${subjectNoun} topic they ask about, potentially across a long back-and-forth covering several angles on it.`,
+    'First decide `kind`: use "explanation" once there\'s a specific enough topic or question to answer. Use "chat" for greetings, small talk, thanks, or when the request is too vague to answer yet and you need to ask a short clarifying question. For "chat", write a short, warm reply in `reply` and leave the rest null.',
+    'For "explanation": leave `reply` null. topicTitle is the broad subject of the conversation as a whole (e.g. "How Light Travels") — keep it consistent with what you\'ve called it earlier in this conversation if it\'s already been established, rather than rephrasing it each time.',
+    'sectionHeading is a short heading (a few words) for what THIS reply specifically covers (e.g. "How Light Travels", "What Light Is", "The Weight of Light") — every distinct question or angle gets its own distinct heading, even within the same broad topic.',
+    'sectionAction is "continue" only when this message is a direct follow-up asking for more on the EXACT same specific point you just covered in your last reply (e.g. "can you explain that more", "why though", "go on") — in that case reuse the exact same sectionHeading as last time. Use "new" for anything else: a different specific question, a different angle, or the first question in the conversation.',
+    "sectionBody is the actual explanation, in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no jargon, no assumed background knowledge. When sectionAction is \"continue\", write only the NEW content to add — it gets appended after what you already said, so don't repeat the earlier part.",
+    formattingInstruction,
+    "Use as much of your available response length as you need to explain clearly and completely — don't cut it artificially short, but don't pad it with filler either.",
+    "If you don't actually know the topic well, say so honestly in `sectionBody` rather than inventing a plausible-sounding but wrong explanation.",
+  ].join(' ');
+}
+
 const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   'word-helper': {
     model: 'gpt-4o-mini',
@@ -409,6 +473,22 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'Never repeat a quote already given earlier in this conversation unless the user asks for it again.',
     ].join(' '),
     responseSchema: QUOTE_FINDER_SCHEMA,
+  },
+  'science-explainer': {
+    model: 'gpt-4o-mini',
+    task: buildTopicExplainerTask(
+      'science',
+      'In sectionBody, wrap important keywords and concepts — the specific terms someone would actually want to remember or look up, e.g. **photon**, **refraction** — in **double asterisks** to bold them. Be selective: bold the handful of terms that matter most, not every technical-sounding word.',
+    ),
+    responseSchema: TOPIC_EXPLAINER_SCHEMA,
+  },
+  'history-helper': {
+    model: 'gpt-4o-mini',
+    task: buildTopicExplainerTask(
+      'history',
+      'In sectionBody, wrap important dates in **double asterisks** to bold them (e.g. **1789**, **14 July 1789**), and wrap important names of people in *single asterisks* to italicize them (e.g. *Napoleon Bonaparte*). Be selective: mark the handful of dates and names that matter most to this specific point, not every one mentioned in passing.',
+    ),
+    responseSchema: TOPIC_EXPLAINER_SCHEMA,
   },
 };
 

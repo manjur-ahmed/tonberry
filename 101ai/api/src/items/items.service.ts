@@ -8,12 +8,42 @@ import { ItemLimitReachedException } from './item-limit-reached.exception';
 // Must match the "5 items per tool" line in web/src/lib/plans.ts.
 const FREE_PLAN_ITEM_LIMIT = 5;
 
+// Item.data shape for science-explainer/history-helper — see upsertSection.
+// One item per chat rather than one per reply: a rabbit-hole conversation
+// covering several angles on one broad subject reads back as one document
+// with subheadings, not a pile of items each overwriting the last.
+export interface TopicSection {
+  heading: string;
+  body: string;
+}
+
+export interface TopicItemData {
+  title: string;
+  sections: TopicSection[];
+}
+
 @Injectable()
 export class ItemsService {
   constructor(
     @InjectRepository(Item)
     private readonly itemsRepository: Repository<Item>,
   ) {}
+
+  // Plus/Premium get unlimited items — everyone else (free, or no plan
+  // yet) is capped per tool. Only relevant when actually creating a new
+  // item — an update to an existing one (dedup match in saveItem, or an
+  // existing chat's topic item in upsertSection) never counts against it.
+  private async assertUnderItemLimit(
+    userId: string,
+    toolSlug: string,
+    plan: UserPlan | null,
+  ): Promise<void> {
+    if (plan === UserPlan.PLUS || plan === UserPlan.PREMIUM) return;
+    const count = await this.itemsRepository.count({
+      where: { userId, toolSlug },
+    });
+    if (count >= FREE_PLAN_ITEM_LIMIT) throw new ItemLimitReachedException();
+  }
 
   async saveItem(
     userId: string,
@@ -36,14 +66,7 @@ export class ItemsService {
       }
     }
 
-    // Plus/Premium get unlimited items — everyone else (free, or no plan
-    // yet) is capped per tool.
-    if (plan !== UserPlan.PLUS && plan !== UserPlan.PREMIUM) {
-      const count = await this.itemsRepository.count({
-        where: { userId, toolSlug },
-      });
-      if (count >= FREE_PLAN_ITEM_LIMIT) throw new ItemLimitReachedException();
-    }
+    await this.assertUnderItemLimit(userId, toolSlug, plan);
 
     const item = this.itemsRepository.create({
       userId,
@@ -54,6 +77,55 @@ export class ItemsService {
       dedupKey: dedupKey ?? null,
     });
     return this.itemsRepository.save(item);
+  }
+
+  // The topic-explainer counterpart to saveItem: dedupes on the chat id
+  // itself (one item per chat, not one per reply) and merges into the
+  // existing item's sections instead of replacing `data` wholesale.
+  // 'continue' appends onto the last section rather than replacing it, so
+  // a follow-up reply never silently drops what was already said there.
+  async upsertSection(
+    userId: string,
+    toolSlug: string,
+    chatId: string,
+    plan: UserPlan | null,
+    params: {
+      topicTitle: string;
+      sectionHeading: string;
+      sectionBody: string;
+      sectionAction: 'new' | 'continue';
+    },
+  ): Promise<Item> {
+    const existing = await this.itemsRepository.findOne({
+      where: { userId, toolSlug, dedupKey: chatId },
+    });
+
+    if (!existing) {
+      await this.assertUnderItemLimit(userId, toolSlug, plan);
+      const data: TopicItemData = {
+        title: params.topicTitle,
+        sections: [{ heading: params.sectionHeading, body: params.sectionBody }],
+      };
+      const item = this.itemsRepository.create({
+        userId,
+        toolSlug,
+        chatId,
+        title: params.topicTitle,
+        data,
+        dedupKey: chatId,
+      });
+      return this.itemsRepository.save(item);
+    }
+
+    const data = existing.data as TopicItemData;
+    const lastSection = data.sections[data.sections.length - 1];
+    if (params.sectionAction === 'continue' && lastSection) {
+      lastSection.body = `${lastSection.body}\n\n${params.sectionBody}`;
+    } else {
+      data.sections.push({ heading: params.sectionHeading, body: params.sectionBody });
+    }
+    existing.data = data;
+    return this.itemsRepository.save(existing);
   }
 
   getItemsForTool(userId: string, toolSlug: string): Promise<Item[]> {

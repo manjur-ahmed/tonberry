@@ -26,8 +26,8 @@
 - [ ] Wire remaining tools to the API — today every tool other than Word Helper returns entirely canned/instant replies (confirmed in code comments), so this is a prerequisite for most of the feature work below, not just a UI gap
   - [ ] Writer
   - [ ] Maths Solver
-  - [ ] Science Explainer
-  - [ ] History Helper
+  - [x] Science Explainer
+  - [x] History Helper
   - [x] Film Recommendations
   - [x] Book Recommendations
   - [x] Music Recommendations
@@ -78,6 +78,7 @@
 - [ ] Reconcile the dark-mode toggle — implemented two different, both non-functional ways (onboarding saves it to the backend, Settings only touches localStorage), and nothing in the app actually applies a dark theme anywhere yet
 - [ ] Improve the homepage search bar — currently a plain substring match on tool name/description with no clear ("x") button, no match highlighting, and no tolerance for typos or partial/out-of-order words
 - [ ] Add free-trial/upgrade prompts around the site — today the only nudge is `ItemLimitBanner`, shown reactively once a free user's item cap is already hit; add proactive messaging elsewhere (Home, dashboard, chat) to drive Plus/Premium upgrades. Depends on enabling actual purchasing (see Pricing "Coming soon" item above) — no point prompting an upgrade that can't be completed
+- [ ] Embed relevant YouTube videos in Science Explainer/History Helper chats so the user can watch without leaving the app. Needs a new YouTube Data API v3 key (Google Cloud Console, separate from the existing Google OAuth credentials) — the model must never be trusted to name a specific video/ID/URL directly (a strong hallucination risk, worse than Quote Finder's case: a fabricated video ID either fails outright or, worse, resolves to a real but unrelated video). Safe approach: the model only produces a search query; the backend resolves it via a real YouTube Data API search call server-side and embeds whatever actually comes back (or nothing, if no good match) — same "never trust the model for a URL" principle already applied to Quote Finder's verify link. Free quota is ~100 searches/day at the default 10,000-unit daily cap (100 units per search.list call)
 
 ## Design & Branding
 - [ ] Improve font and branding
@@ -109,4 +110,4 @@
 
 ---
 
-**Progress: 5/96 tasks complete (5%)**
+**Progress: 7/97 tasks complete (7%)**
