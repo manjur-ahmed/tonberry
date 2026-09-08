@@ -1,5 +1,14 @@
 @import 'tailwindcss';
 
+/* Stops iOS's rubber-band overscroll past the top/bottom of the page.
+   That elastic bounce stretches the document's actual geometry, which a
+   `sticky` element (BottomNav) tracks and a `fixed` one (Chat's compose
+   bar) doesn't — overscrolling far enough visibly pulls them apart. */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
 @theme {
   --font-display: 'Fraunces', ui-serif, Georgia, serif;
   --animate-float: float 3s ease-in-out infinite;

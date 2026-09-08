@@ -22,6 +22,11 @@ export function useAuth() {
   return {
     user: query.data ?? null,
     isLoading: !!getToken() && query.isLoading,
+    // A token in localStorage means "almost certainly logged in" before
+    // the /auth/me round trip even starts — pages use this to pick the
+    // right skeleton shape immediately instead of rendering nothing until
+    // the network confirms it.
+    hasToken: !!getToken(),
     signOut,
   }
 }
