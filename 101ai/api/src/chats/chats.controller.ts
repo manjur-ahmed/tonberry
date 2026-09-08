@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ChatsService } from './chats.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { AddMessageDto } from './dto/add-message.dto';
+import { StartChatFromItemDto } from './dto/start-chat-from-item.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { User } from '../users/user.entity';
@@ -29,8 +30,13 @@ export class ChatsController {
   startChatFromItem(
     @CurrentUser() user: User,
     @Param('itemId') itemId: string,
+    @Body() dto: StartChatFromItemDto,
   ) {
-    return this.chatsService.createChatFromItem(user.id, itemId);
+    return this.chatsService.createChatFromItem(
+      user.id,
+      itemId,
+      dto.targetToolSlug,
+    );
   }
 
   @Post('chats/:chatId/messages')

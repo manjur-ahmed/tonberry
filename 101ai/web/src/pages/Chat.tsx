@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Info, Plus } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import { useAuth } from '../hooks/useAuth'
-import { addMessage, createChat, getChat, type Chat as ChatData } from '../lib/chats'
+import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage } from '../lib/chats'
 import { delay } from '../lib/delay'
 import { getLoadingDuration } from '../tools/loadingStages'
 import { hasSeenItemLimitNotice, markItemLimitNoticeSeen } from '../lib/itemLimitNotice'
@@ -36,6 +36,24 @@ function parseItemCardData(content: string): unknown {
   } catch {
     return null
   }
+}
+
+// Rendered with the item's *own* tool (message.itemToolSlug), not
+// necessarily this chat's tool — an item opened via "Open in another tool"
+// still needs its origin tool's ItemView (e.g. a film item's title+year
+// card) to make sense of `data`, since the chat's own tool may have no idea
+// how to display it. Falls back to the chat's tool for a message saved
+// before itemToolSlug existed, same as it did before this existed.
+// ItemView already draws its own border/background/padding (see
+// WordHelperItemView) — the wrapper here only adds the shadow, rather than
+// nesting a second bordered box around it.
+function ItemCardMessage({ message, chatToolSlug, chatToolName }: { message: ChatMessage; chatToolSlug: string; chatToolName: string }) {
+  const ItemView = getItemView(message.itemToolSlug ?? chatToolSlug)
+  return (
+    <div className="rounded-2xl shadow-md shadow-slate-300/40">
+      <ItemView title={message.itemTitle ?? chatToolName} data={parseItemCardData(message.content)} />
+    </div>
+  )
 }
 
 function Chat() {
@@ -156,7 +174,15 @@ function Chat() {
           ...previous,
           messages: [
             ...previous.messages,
-            { id: optimisticId, role: 'user', content, isItemCard: false, createdAt: new Date().toISOString() },
+            {
+              id: optimisticId,
+              role: 'user',
+              content,
+              isItemCard: false,
+              itemTitle: null,
+              itemToolSlug: null,
+              createdAt: new Date().toISOString(),
+            },
           ],
         })
         pendingScrollIdRef.current = optimisticId
@@ -249,7 +275,6 @@ function Chat() {
   }
 
   const ResponseView = getResponseView(tool.slug)
-  const ItemView = getItemView(tool.slug)
 
   return (
     // Extra bottom padding — the compose bar below is now `fixed`, so it no
@@ -304,12 +329,7 @@ function Chat() {
               </p>
             </div>
           ) : message.isItemCard ? (
-            // ItemView already draws its own border/background/padding
-            // (see WordHelperItemView) — this wrapper only adds the shadow,
-            // rather than nesting a second bordered box around it.
-            <div key={message.id} className="rounded-2xl shadow-md shadow-slate-300/40">
-              <ItemView title={tool.name} data={parseItemCardData(message.content)} />
-            </div>
+            <ItemCardMessage key={message.id} message={message} chatToolSlug={tool.slug} chatToolName={tool.name} />
           ) : (
             <div key={message.id}>
               <ResponseView

@@ -10,6 +10,18 @@ export interface ChatMessage {
   // this" is seeded with — Chat.tsx renders that one as a compact item
   // card instead of the tool's normal (long) ResponseView.
   isItemCard: boolean
+  // The saved item's own title, only set on an isItemCard message — see
+  // Message.itemTitle on the backend for why this can't be derived from
+  // `content` (the raw item data) instead. Null on a message saved before
+  // this field existed.
+  itemTitle: string | null
+  // The item's own tool — not necessarily this chat's toolSlug, since an
+  // item can be opened in a *different* tool's chat (see ItemDetailModal's
+  // "Open in another tool"). Chat.tsx uses this to pick the item's own
+  // ItemView so it still renders correctly (e.g. a film item keeps its
+  // title+year card) even inside a chat that belongs to a different tool.
+  // Null on a message saved before this field existed.
+  itemToolSlug: string | null
   createdAt: string
 }
 
@@ -48,8 +60,14 @@ export async function createChat(toolSlug: string, message: string, skipRouter?:
   return response.json()
 }
 
-export async function startChatFromItem(itemId: string): Promise<ChatResult> {
-  const response = await authedFetch(`/items/${itemId}/start-chat`, { method: 'POST' })
+// Omit targetToolSlug to start the chat in the item's own tool (the
+// default) — pass it to send the item to a different tool instead (see
+// ItemDetailModal's "Open in another tool").
+export async function startChatFromItem(itemId: string, targetToolSlug?: string): Promise<ChatResult> {
+  const response = await authedFetch(`/items/${itemId}/start-chat`, {
+    method: 'POST',
+    body: JSON.stringify({ targetToolSlug }),
+  })
   if (!response.ok) throw new Error(`Failed to start chat: ${response.status}`)
   return response.json()
 }

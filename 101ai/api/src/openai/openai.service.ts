@@ -4,11 +4,13 @@ import OpenAI from 'openai';
 import { getToolConfig } from '../tools/tool-config';
 import { UsageLogsService } from '../usage-logs/usage-logs.service';
 
-// Worst-case cost guard — comfortably covers the largest structured reply
-// across tools today: film/book-recommendations enumerating a long real
-// series in full (e.g. two dozen entries for a franchise like James Bond),
-// each with a title/year/genre/summary/reason/rating. A plain taste-based
-// request only produces 3 entries and uses a small fraction of this.
+// Default worst-case cost guard, used whenever a tool doesn't set its own
+// maxCompletionTokens (see tool-config.ts) — comfortably covers the largest
+// structured reply across tools today: film/book-recommendations
+// enumerating a long real series in full (e.g. two dozen entries for a
+// franchise like James Bond), each with a title/year/genre/summary/reason/
+// rating. A plain taste-based request only produces 3 entries and uses a
+// small fraction of this.
 const MAX_COMPLETION_TOKENS = 2500;
 
 // Bounds how much prior conversation gets sent on a long chat — a simple
@@ -67,7 +69,7 @@ export class OpenAiService {
           })),
           { role: 'user', content: params.message },
         ],
-        max_completion_tokens: MAX_COMPLETION_TOKENS,
+        max_completion_tokens: config.maxCompletionTokens ?? MAX_COMPLETION_TOKENS,
         response_format: config.responseSchema
           ? {
               type: 'json_schema',
