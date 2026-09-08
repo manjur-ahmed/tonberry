@@ -15,6 +15,11 @@ import { useKeyboardInset } from '../hooks/useKeyboardInset'
 const tabs = ['Items', 'Chats', 'Examples'] as const
 type Tab = (typeof tabs)[number]
 
+// These tools' items carry a lot more per-card content (genre, summary,
+// rating) than a word-helper item — cramped into 2 columns it clips
+// awkwardly, so they get one card per row instead.
+const DENSE_ITEM_TOOLS = new Set(['film-recommendations', 'book-recommendations'])
+
 function ToolDashboard() {
   const { slug } = useParams<{ slug: string }>()
   const tool = slug ? getTool(slug) : undefined
@@ -28,6 +33,8 @@ function ToolDashboard() {
   const [message, setMessage] = useState('')
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
   const [openItemMenuId, setOpenItemMenuId] = useState<string | null>(null)
+  const itemsGridClassName =
+    tool && DENSE_ITEM_TOOLS.has(tool.slug) ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'
 
   const { data: chats = [], isLoading: isChatsLoading } = useQuery({
     queryKey: ['chats', tool?.slug],
@@ -131,14 +138,14 @@ function ToolDashboard() {
       <div className="mt-8 text-sm text-slate-500">
         {tab === 'Items' &&
           (isItemsLoading ? (
-            <div className="grid grid-cols-2 gap-4">
+            <div className={itemsGridClassName}>
               <Skeleton className="h-32" />
               <Skeleton className="h-32" />
             </div>
           ) : items.length === 0 ? (
             <p>No items saved yet. Anything worth keeping from a chat will show up here.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className={itemsGridClassName}>
               {items.map((item) => {
                 const ItemView = getItemView(item.toolSlug)
                 return (
