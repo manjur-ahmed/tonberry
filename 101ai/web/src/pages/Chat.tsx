@@ -59,7 +59,7 @@ function Chat() {
   const pendingScrollIdRef = useRef<string | null>(null)
 
   const [draft, setDraft] = useState('')
-  const [redirectSuggestion, setRedirectSuggestion] = useState<string | null>(null)
+  const [redirectSuggestion, setRedirectSuggestion] = useState<{ toolSlug: string; content: string } | null>(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [saveStatuses, setSaveStatuses] = useState<Record<string, SaveStatus>>({})
   const [itemLimitNoticeMessageId, setItemLimitNoticeMessageId] = useState<string | null>(null)
@@ -118,8 +118,10 @@ function Chat() {
   }, [draft])
 
   const sendMutation = useMutation({
-    mutationFn: async (content: string) => {
-      const result = isNewChat ? await createChat(tool!.slug, content) : await addMessage(chatId!, content)
+    mutationFn: async ({ content, skipRouter }: { content: string; skipRouter?: boolean }) => {
+      const result = isNewChat
+        ? await createChat(tool!.slug, content, skipRouter)
+        : await addMessage(chatId!, content, skipRouter)
       // No real API latency yet (see openai.service.ts) — hold the reply so
       // the fake "generating" stages below get a beat on screen instead of
       // flashing in and out instantly.
@@ -129,7 +131,7 @@ function Chat() {
     // Shows the user's own message immediately rather than waiting on the
     // (now artificially delayed) round trip — reverted below if the router
     // redirects instead of actually saving it to this chat.
-    onMutate: (content: string) => {
+    onMutate: ({ content }: { content: string; skipRouter?: boolean }) => {
       const previous = queryClient.getQueryData<ChatData>(['chat', chatId])
       if (previous) {
         const optimisticId = `optimistic-${Date.now()}`
@@ -144,10 +146,10 @@ function Chat() {
       }
       return { previous }
     },
-    onSuccess: (result, _content, context) => {
+    onSuccess: (result, { content }, context) => {
       if (result.type === 'redirect') {
         if (context?.previous) queryClient.setQueryData(['chat', chatId], context.previous)
-        setRedirectSuggestion(result.suggestedTool)
+        setRedirectSuggestion({ toolSlug: result.suggestedTool, content })
         return
       }
       if (isNewChat) {
@@ -160,7 +162,7 @@ function Chat() {
         queryClient.setQueryData(['chat', chatId], result.chat)
       }
     },
-    onError: (_error, content, context) => {
+    onError: (_error, { content }, context) => {
       if (context?.previous) queryClient.setQueryData(['chat', chatId], context.previous)
       if (isNewChat) {
         navigate(`/tools/${tool!.slug}/dashboard`, { replace: true })
@@ -189,14 +191,25 @@ function Chat() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
-    sendMutation.mutate(firstMessage)
+    sendMutation.mutate({ content: firstMessage })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function handleSend() {
     if (!draft.trim() || !chatId) return
-    sendMutation.mutate(draft)
+    sendMutation.mutate({ content: draft })
     setDraft('')
+  }
+
+  // The router flagged this message as a better fit for another tool, but
+  // the user chose to stay — resend the same message with skipRouter so it
+  // doesn't just get redirected again. The AI may well decline it (see the
+  // scope-guard system prompt in tool-config.ts), but that decline happens
+  // in-chat rather than forcing a tool switch the user didn't ask for.
+  function handleStayHere() {
+    if (!redirectSuggestion) return
+    sendMutation.mutate({ content: redirectSuggestion.content, skipRouter: true })
+    setRedirectSuggestion(null)
   }
 
   if (!tool || (isNewChat ? !chat : isLoading)) {
@@ -323,7 +336,7 @@ function Chat() {
         )}
 
         {redirectSuggestion ? (
-          <RedirectSuggestion toolSlug={redirectSuggestion} onDismiss={() => setRedirectSuggestion(null)} />
+          <RedirectSuggestion toolSlug={redirectSuggestion.toolSlug} onStayHere={handleStayHere} />
         ) : (
           <div
             className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm"

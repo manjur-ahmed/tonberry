@@ -106,27 +106,33 @@ function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, on
       <p className="mt-1 text-sm text-slate-400">{data.phonetic}</p>
       <p className="mt-3 font-semibold text-slate-900">{data.shortDefinition}</p>
 
-      <div className="mt-6">
-        <Label>Meaning</Label>
-        <p className="mt-2 text-sm text-slate-700">{data.meaning}</p>
-      </div>
+      {data.meaning && (
+        <div className="mt-6">
+          <Label>Meaning</Label>
+          <p className="mt-2 text-sm text-slate-700">{data.meaning}</p>
+        </div>
+      )}
 
-      <div className="mt-6">
-        <Label>Examples</Label>
-        <ul className="mt-2 space-y-1.5">
-          {data.examples.map((example) => (
-            <li key={example} className="flex gap-2 text-sm text-slate-700">
-              <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-violet-300" />
-              &ldquo;{example}&rdquo;
-            </li>
-          ))}
-        </ul>
-      </div>
+      {data.examples.length > 0 && (
+        <div className="mt-6">
+          <Label>Examples</Label>
+          <ul className="mt-2 space-y-1.5">
+            {data.examples.map((example) => (
+              <li key={example} className="flex gap-2 text-sm text-slate-700">
+                <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-violet-300" />
+                &ldquo;{example}&rdquo;
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
-      <div className="mt-6">
-        <Label>Similar words</Label>
-        <p className="mt-2 text-sm text-slate-700">{data.synonyms.join(' • ')}</p>
-      </div>
+      {data.synonyms.length > 0 && (
+        <div className="mt-6">
+          <Label>Similar words</Label>
+          <p className="mt-2 text-sm text-slate-700">{data.synonyms.join(' • ')}</p>
+        </div>
+      )}
     </div>
   )
 }

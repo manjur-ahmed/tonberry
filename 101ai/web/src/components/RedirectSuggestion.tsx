@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { getTool } from '../tools/registry'
 
-function RedirectSuggestion({ toolSlug, onDismiss }: { toolSlug: string; onDismiss: () => void }) {
+function RedirectSuggestion({ toolSlug, onStayHere }: { toolSlug: string; onStayHere: () => void }) {
   const navigate = useNavigate()
   const tool = getTool(toolSlug)
 
@@ -13,7 +13,7 @@ function RedirectSuggestion({ toolSlug, onDismiss }: { toolSlug: string; onDismi
       <div className="mt-4 flex gap-3">
         <button
           type="button"
-          onClick={onDismiss}
+          onClick={onStayHere}
           className="flex-1 rounded-full border border-slate-300 py-2.5 text-sm font-semibold text-slate-900 hover:bg-slate-50"
         >
           Stay here
