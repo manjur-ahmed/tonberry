@@ -1,6 +1,9 @@
 import type { ComponentType } from 'react'
 import DefaultResponse from './default/ResponseView'
 import WordHelperResponse from './word-helper/ResponseView'
+import FilmRecommendationsResponse from './film-recommendations/ResponseView'
+import BookRecommendationsResponse from './book-recommendations/ResponseView'
+import MusicRecommendationsResponse from './music-recommendations/ResponseView'
 
 export type SaveStatus = 'saving' | 'saved' | 'error' | 'limit-reached'
 
@@ -27,6 +30,9 @@ export interface ResponseViewProps {
 // here falls back to DefaultResponse (plain text).
 const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'word-helper': WordHelperResponse,
+  'film-recommendations': FilmRecommendationsResponse,
+  'book-recommendations': BookRecommendationsResponse,
+  'music-recommendations': MusicRecommendationsResponse,
 }
 
 export function getResponseView(slug: string): ComponentType<ResponseViewProps> {

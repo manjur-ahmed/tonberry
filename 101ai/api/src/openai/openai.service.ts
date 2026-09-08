@@ -4,9 +4,12 @@ import OpenAI from 'openai';
 import { getToolConfig } from '../tools/tool-config';
 import { UsageLogsService } from '../usage-logs/usage-logs.service';
 
-// Worst-case cost guard — comfortably covers a structured reply (a
-// definition plus a few examples/synonyms) on gpt-4o-mini.
-const MAX_COMPLETION_TOKENS = 500;
+// Worst-case cost guard — comfortably covers the largest structured reply
+// across tools today: film/book-recommendations enumerating a long real
+// series in full (e.g. two dozen entries for a franchise like James Bond),
+// each with a title/year/genre/summary/reason/rating. A plain taste-based
+// request only produces 3 entries and uses a small fraction of this.
+const MAX_COMPLETION_TOKENS = 2500;
 
 // Bounds how much prior conversation gets sent on a long chat — a simple
 // recency cutoff, not real pruning/summarization. Plenty for any chat this

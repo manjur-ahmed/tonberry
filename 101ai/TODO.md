@@ -28,9 +28,9 @@
   - [ ] Maths Solver
   - [ ] Science Explainer
   - [ ] History Helper
-  - [ ] Film Recommendations
-  - [ ] Book Recommendations
-  - [ ] Music Recommendations
+  - [x] Film Recommendations
+  - [x] Book Recommendations
+  - [x] Music Recommendations
   - [ ] Story Explainer
   - [ ] Quote Finder
   - [ ] Business Plan
