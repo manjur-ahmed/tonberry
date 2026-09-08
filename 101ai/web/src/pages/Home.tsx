@@ -71,10 +71,8 @@ function Home() {
 
   return (
     // @container — the horizontal-scroll rows below size each card off this
-    // box's own width (cqw) rather than a fixed px value, so exactly 2.15
-    // cards show on load on any device. A fixed width happened to land on
-    // an *exact* 2 cards on some screens, hiding the 3rd entirely and
-    // making the row look like a static grid instead of something to swipe.
+    // box's own width (cqw) rather than a fixed px value, so exactly 2
+    // cards show on load on any device.
     <main className="@container">
       {showHero && (
         <section className="relative overflow-hidden bg-gradient-to-b from-indigo-100 via-violet-50 to-white px-4 pb-10 pt-16">
@@ -142,7 +140,7 @@ function Home() {
             <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
             <div className="mt-4 flex gap-6">
               {savedSlugs.map((slug) => (
-                <Skeleton key={slug} className="h-[170px] w-[calc((100cqw-5rem)/2.15)] flex-shrink-0" />
+                <Skeleton key={slug} className="h-[170px] w-[calc((100cqw-5rem)/2)] flex-shrink-0" />
               ))}
             </div>
           </div>
@@ -153,7 +151,7 @@ function Home() {
               <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
               <div className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {savedTools.map((tool) => (
-                  <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2.15)] flex-shrink-0">
+                  <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2)] flex-shrink-0">
                     <ToolCard tool={tool} />
                   </div>
                 ))}
@@ -204,7 +202,7 @@ function Home() {
                   </h3>
                   <div className="-mx-4 mt-3 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {items.map((tool) => (
-                      <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2.15)] flex-shrink-0">
+                      <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2)] flex-shrink-0">
                         <ToolCard tool={tool} />
                       </div>
                     ))}
