@@ -17,7 +17,12 @@ export class ChatsController {
     @Param('slug') slug: string,
     @Body() dto: CreateChatDto,
   ) {
-    return this.chatsService.createChat(user.id, slug, dto.message);
+    return this.chatsService.createChat(
+      user.id,
+      slug,
+      dto.message,
+      dto.skipRouter,
+    );
   }
 
   @Post('items/:itemId/start-chat')
@@ -34,7 +39,12 @@ export class ChatsController {
     @Param('chatId') chatId: string,
     @Body() dto: AddMessageDto,
   ) {
-    return this.chatsService.addMessage(user.id, chatId, dto.content);
+    return this.chatsService.addMessage(
+      user.id,
+      chatId,
+      dto.content,
+      dto.skipRouter,
+    );
   }
 
   @Get('chats/:chatId')

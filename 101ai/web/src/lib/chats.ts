@@ -39,10 +39,10 @@ async function authedFetch(path: string, options: RequestInit = {}): Promise<Res
   })
 }
 
-export async function createChat(toolSlug: string, message: string): Promise<ChatResult> {
+export async function createChat(toolSlug: string, message: string, skipRouter?: boolean): Promise<ChatResult> {
   const response = await authedFetch(`/tools/${toolSlug}/chats`, {
     method: 'POST',
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ message, skipRouter }),
   })
   if (!response.ok) throw new Error(`Failed to create chat: ${response.status}`)
   return response.json()
@@ -54,10 +54,10 @@ export async function startChatFromItem(itemId: string): Promise<ChatResult> {
   return response.json()
 }
 
-export async function addMessage(chatId: string, content: string): Promise<ChatResult> {
+export async function addMessage(chatId: string, content: string, skipRouter?: boolean): Promise<ChatResult> {
   const response = await authedFetch(`/chats/${chatId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, skipRouter }),
   })
   if (!response.ok) throw new Error(`Failed to send message: ${response.status}`)
   return response.json()

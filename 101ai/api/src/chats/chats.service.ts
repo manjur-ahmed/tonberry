@@ -35,6 +35,28 @@ function sequentialTimestamps(count: number): Date[] {
 const START_CHAT_USER_MESSAGE = 'I want to talk about this';
 const START_CHAT_ASSISTANT_REPLY = 'Sure, how can I help?';
 
+// Wraps the raw item JSON stored on the isItemCard message (see
+// createChatFromItem) with a natural-language preamble before it's sent to
+// OpenAI as conversation history — the model otherwise sees an unlabeled
+// assistant turn indistinguishable from a real prior reply, which biases it
+// toward treating the item as the final word rather than as context to
+// build on. Only affects what OpenAI sees; the DB row and anything the
+// frontend renders from message.content (e.g. the item card in
+// word-helper/ResponseView.tsx) are untouched. Generic on purpose —
+// createChatFromItem itself is tool-agnostic, so any tool-specific
+// interpretation belongs in that tool's `task` string in tool-config.ts,
+// not here.
+const ITEM_CONTEXT_PREAMBLE =
+  'For reference, here is an item the user previously saved and is now ' +
+  'viewing (raw data below). Treat it as context already established in ' +
+  "this conversation, the same as anything discussed earlier — the " +
+  "user's next message may continue about it, or may ask for something " +
+  'new or different.';
+
+function wrapItemCardContent(rawContent: string): string {
+  return `${ITEM_CONTEXT_PREAMBLE}\n\n${rawContent}`;
+}
+
 @Injectable()
 export class ChatsService {
   constructor(
@@ -51,8 +73,11 @@ export class ChatsService {
     userId: string,
     toolSlug: string,
     firstMessage: string,
+    skipRouter = false,
   ): Promise<ChatResult> {
-    const routerResult = this.router.check(firstMessage, toolSlug);
+    const routerResult = skipRouter
+      ? { redirect: false }
+      : this.router.check(firstMessage, toolSlug);
     if (routerResult.redirect && routerResult.toolSlug) {
       return { type: 'redirect', suggestedTool: routerResult.toolSlug };
     }
@@ -138,10 +163,13 @@ export class ChatsService {
     userId: string,
     chatId: string,
     content: string,
+    skipRouter = false,
   ): Promise<ChatResult> {
     const chat = await this.getOwnedChat(userId, chatId);
 
-    const routerResult = this.router.check(content, chat.toolSlug);
+    const routerResult = skipRouter
+      ? { redirect: false }
+      : this.router.check(content, chat.toolSlug);
     if (routerResult.redirect && routerResult.toolSlug) {
       return { type: 'redirect', suggestedTool: routerResult.toolSlug };
     }
@@ -152,7 +180,9 @@ export class ChatsService {
       message: content,
       history: chat.messages.map((message) => ({
         role: message.role,
-        content: message.content,
+        content: message.isItemCard
+          ? wrapItemCardContent(message.content)
+          : message.content,
       })),
       userId,
       chatId: chat.id,
