@@ -57,6 +57,34 @@ export async function saveItem(
   return response.json()
 }
 
+// The topic-explainer counterpart to saveItem (see science-explainer /
+// history-helper) — dedupes on the chat itself (one item per chat, not one
+// per reply) and merges into the existing item's sections server-side
+// instead of replacing it wholesale. sectionAction 'continue' appends onto
+// the last section rather than replacing it, so a follow-up reply never
+// silently drops what was already said there.
+export async function upsertItemSection(
+  toolSlug: string,
+  chatId: string,
+  params: {
+    topicTitle: string
+    sectionHeading: string
+    sectionBody: string
+    sectionAction: 'new' | 'continue'
+  },
+): Promise<Item> {
+  const response = await authedFetch('/items/sections', {
+    method: 'POST',
+    body: JSON.stringify({ toolSlug, chatId, ...params }),
+  })
+  if (response.status === 403) {
+    const body = await response.json().catch(() => null)
+    if (body?.code === 'ITEM_LIMIT_REACHED') throw new ItemLimitReachedError()
+  }
+  if (!response.ok) throw new Error(`Failed to save item: ${response.status}`)
+  return response.json()
+}
+
 export async function getItemsForTool(toolSlug: string): Promise<Item[]> {
   const response = await authedFetch(`/tools/${toolSlug}/items`)
   if (!response.ok) throw new Error(`Failed to load items: ${response.status}`)

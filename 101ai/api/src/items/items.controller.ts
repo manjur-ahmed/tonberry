@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ItemsService } from './items.service';
 import { CreateItemDto } from './dto/create-item.dto';
+import { UpsertItemSectionDto } from './dto/upsert-item-section.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { User } from '../users/user.entity';
@@ -28,6 +29,22 @@ export class ItemsController {
       dto.data,
       user.plan,
       dto.dedupKey,
+    );
+  }
+
+  @Post('items/sections')
+  upsertSection(@CurrentUser() user: User, @Body() dto: UpsertItemSectionDto) {
+    return this.itemsService.upsertSection(
+      user.id,
+      dto.toolSlug,
+      dto.chatId,
+      user.plan,
+      {
+        topicTitle: dto.topicTitle,
+        sectionHeading: dto.sectionHeading,
+        sectionBody: dto.sectionBody,
+        sectionAction: dto.sectionAction,
+      },
     );
   }
 
