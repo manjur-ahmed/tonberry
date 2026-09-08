@@ -24,6 +24,40 @@
 
 ## Core Product — Tools & Chat
 - [ ] Wire remaining tools to the API — today every tool other than Word Helper returns entirely canned/instant replies (confirmed in code comments), so this is a prerequisite for most of the feature work below, not just a UI gap
+  - [ ] Writer
+  - [ ] Maths Solver
+  - [ ] Science Explainer
+  - [ ] History Helper
+  - [ ] Film Recommendations
+  - [ ] Book Recommendations
+  - [ ] Music Recommendations
+  - [ ] Story Explainer
+  - [ ] Quote Finder
+  - [ ] Business Plan
+  - [ ] Business Research
+  - [ ] Ad Creator
+  - [ ] Salary Calculator
+  - [ ] Budget Planner
+  - [ ] Career Planner
+  - [ ] Shopping
+  - [ ] Clothing
+  - [ ] Insurance
+  - [ ] General Health
+  - [ ] Diet
+  - [ ] Self Care
+  - [ ] Steps Planner
+  - [ ] Gym Planner
+  - [ ] Ingredients
+  - [ ] Recipes
+  - [ ] Cooking Instructions
+  - [ ] Day Activity
+  - [ ] Holiday Planning
+  - [ ] Politics
+  - [ ] News
+  - [ ] Home
+  - [ ] Car
+  - [ ] DIY
+  - [ ] Tech
   - [ ] Set up additional API requirements for supplemental data
 - [ ] Design dashboard for remaining tools
   - [ ] Dynamic dashboard tabs (may be different for different tools)
