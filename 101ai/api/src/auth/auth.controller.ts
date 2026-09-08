@@ -16,6 +16,7 @@ import { GoogleOAuthService } from './google-oauth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/user.entity';
 import { toPublicUser } from '../users/user.serializer';
@@ -47,6 +48,13 @@ export class AuthController {
       'http://localhost:5174',
     );
     return res.redirect(`${frontendUrl}/auth/callback?token=${token}`, 302);
+  }
+
+  @Post('register')
+  async register(@Body() dto: RegisterDto) {
+    const user = await this.usersService.createWithPassword(dto);
+    const token = this.jwtService.sign({ sub: user.id });
+    return { token };
   }
 
   @Post('login')

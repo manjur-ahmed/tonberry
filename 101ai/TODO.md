@@ -74,6 +74,7 @@
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
 - [ ] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
 - [ ] Surface query errors instead of treating them as empty states — the dashboard, Recent, and Chat pages all drop fetch errors, so a failed request looks identical to "nothing here yet" (and a missing chat looks like "not found" even when it's really an auth/server error)
+- [ ] Add loading state UIs across the site — skeletons/spinners exist on some pages (Home, ToolDashboard, ToolPage, Chat) but others (Recent, Settings) show nothing while fetching, so slow requests look broken instead of loading; make coverage consistent everywhere data is fetched
 - [ ] Reconcile the dark-mode toggle — implemented two different, both non-functional ways (onboarding saves it to the backend, Settings only touches localStorage), and nothing in the app actually applies a dark theme anywhere yet
 
 ## Design & Branding
