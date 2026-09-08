@@ -18,7 +18,7 @@ type Tab = (typeof tabs)[number]
 // These tools' items carry a lot more per-card content (genre, summary,
 // rating) than a word-helper item — cramped into 2 columns it clips
 // awkwardly, so they get one card per row instead.
-const DENSE_ITEM_TOOLS = new Set(['film-recommendations', 'book-recommendations'])
+const DENSE_ITEM_TOOLS = new Set(['film-recommendations', 'book-recommendations', 'quote-finder', 'story-explainer'])
 
 function ToolDashboard() {
   const { slug } = useParams<{ slug: string }>()

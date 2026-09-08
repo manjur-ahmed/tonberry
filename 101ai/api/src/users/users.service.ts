@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
@@ -49,6 +49,31 @@ export class UsersService {
       googleId: profile.googleId,
       email: profile.email,
       name: profile.name,
+      plan: null,
+    });
+    return this.usersRepository.save(user);
+  }
+
+  async createWithPassword(params: {
+    name: string;
+    email: string;
+    password: string;
+  }): Promise<User> {
+    const existing = await this.usersRepository.findOneBy({
+      email: params.email,
+    });
+    if (existing) {
+      throw new ConflictException('An account with this email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(
+      params.password,
+      PASSWORD_HASH_ROUNDS,
+    );
+    const user = this.usersRepository.create({
+      email: params.email,
+      name: params.name,
+      passwordHash,
       plan: null,
     });
     return this.usersRepository.save(user);

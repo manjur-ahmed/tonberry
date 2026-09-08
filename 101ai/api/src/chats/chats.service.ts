@@ -1,5 +1,9 @@
 import { randomUUID } from 'crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Chat } from './chat.entity';
@@ -7,6 +11,7 @@ import { Message, MessageRole } from './message.entity';
 import { RouterService } from '../router/router.service';
 import { OpenAiService } from '../openai/openai.service';
 import { ItemsService } from '../items/items.service';
+import { getToolCatalogEntry } from '../tools/tool-catalog';
 
 export type ChatResult =
   { type: 'redirect'; suggestedTool: string } | { type: 'reply'; chat: Chat };
@@ -123,17 +128,29 @@ export class ChatsService {
   // No OpenAiService call — the item card plus the two canned messages are
   // fixed, not generated. Real context only kicks in once the user sends
   // their own first message, via addMessage's history above.
+  //
+  // targetToolSlug lets an item saved by one tool start a chat in a
+  // *different* tool (see ItemDetailModal's "Open in another tool") —
+  // defaults to the item's own tool, the original behaviour. The item's raw
+  // data still gets sent as-is regardless of which tool the chat lands in;
+  // ITEM_CONTEXT_PREAMBLE plus the receiving tool's own scope guard (see
+  // tool-config.ts) is what makes a cross-tool item make sense there.
   async createChatFromItem(
     userId: string,
     itemId: string,
+    targetToolSlug?: string,
   ): Promise<ChatResult> {
     const item = await this.items.getOwnedItem(userId, itemId);
+    if (targetToolSlug && !getToolCatalogEntry(targetToolSlug)) {
+      throw new BadRequestException('Unknown tool');
+    }
+    const toolSlug = targetToolSlug ?? item.toolSlug;
 
     const [cardTimestamp, userTimestamp, replyTimestamp] =
       sequentialTimestamps(3);
     const chat = this.chatsRepository.create({
       userId,
-      toolSlug: item.toolSlug,
+      toolSlug,
       title: makeTitle(item.title),
       lastMessagePreview: makeTitle(START_CHAT_USER_MESSAGE),
       messages: [
@@ -142,6 +159,8 @@ export class ChatsService {
           content: JSON.stringify(item.data),
           createdAt: cardTimestamp,
           isItemCard: true,
+          itemTitle: item.title,
+          itemToolSlug: item.toolSlug,
         },
         {
           role: MessageRole.USER,

@@ -31,8 +31,8 @@
   - [x] Film Recommendations
   - [x] Book Recommendations
   - [x] Music Recommendations
-  - [ ] Story Explainer
-  - [ ] Quote Finder
+  - [x] Story Explainer
+  - [x] Quote Finder
   - [ ] Business Plan
   - [ ] Business Research
   - [ ] Ad Creator
@@ -74,7 +74,10 @@
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
 - [ ] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
 - [ ] Surface query errors instead of treating them as empty states — the dashboard, Recent, and Chat pages all drop fetch errors, so a failed request looks identical to "nothing here yet" (and a missing chat looks like "not found" even when it's really an auth/server error)
+- [ ] Add loading state UIs across the site — skeletons/spinners exist on some pages (Home, ToolDashboard, ToolPage, Chat) but others (Recent, Settings) show nothing while fetching, so slow requests look broken instead of loading; make coverage consistent everywhere data is fetched
 - [ ] Reconcile the dark-mode toggle — implemented two different, both non-functional ways (onboarding saves it to the backend, Settings only touches localStorage), and nothing in the app actually applies a dark theme anywhere yet
+- [ ] Improve the homepage search bar — currently a plain substring match on tool name/description with no clear ("x") button, no match highlighting, and no tolerance for typos or partial/out-of-order words
+- [ ] Add free-trial/upgrade prompts around the site — today the only nudge is `ItemLimitBanner`, shown reactively once a free user's item cap is already hit; add proactive messaging elsewhere (Home, dashboard, chat) to drive Plus/Premium upgrades. Depends on enabling actual purchasing (see Pricing "Coming soon" item above) — no point prompting an upgrade that can't be completed
 
 ## Design & Branding
 - [ ] Improve font and branding
@@ -103,3 +106,7 @@
 - [ ] Set up business account and sign up to Google app publishing
 - [ ] Make into app
 - [ ] Set up automated emailing (Mailchimp or something else)
+
+---
+
+**Progress: 5/96 tasks complete (5%)**

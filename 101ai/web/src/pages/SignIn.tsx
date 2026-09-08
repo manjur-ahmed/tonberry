@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { API_URL, fetchMe, login, setToken } from '../lib/api'
+import { API_URL, fetchMe, login, register, setToken } from '../lib/api'
+
+const MIN_PASSWORD_LENGTH = 8
 
 function SignIn() {
   const [searchParams] = useSearchParams()
@@ -12,20 +14,33 @@ function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
+  // Shared by both mutations below — mirrors AuthCallback's gating, since
+  // the destination page fetches its own fresh ['me'] via useAuth and this
+  // just decides where to send them.
+  async function redirectAfterAuth(token: string) {
+    setToken(token)
+    const user = await fetchMe()
+    navigate(user?.plan && user?.country && user?.name ? '/' : '/pricing', { replace: true })
+  }
+
   const loginMutation = useMutation({
     mutationFn: () => login(email, password),
-    onSuccess: async ({ token }) => {
-      setToken(token)
-      // Mirrors AuthCallback's gating — the destination page fetches its
-      // own fresh ['me'] via useAuth, this just decides where to send them.
-      const user = await fetchMe()
-      navigate(user?.plan && user?.country && user?.name ? '/' : '/pricing', { replace: true })
-    },
+    onSuccess: ({ token }) => redirectAfterAuth(token),
+  })
+
+  const registerMutation = useMutation({
+    mutationFn: () => register(name.trim(), email, password),
+    onSuccess: ({ token }) => redirectAfterAuth(token),
   })
 
   function handleLogin() {
     if (!email.trim() || !password.trim()) return
     loginMutation.mutate()
+  }
+
+  function handleRegister() {
+    if (!name.trim() || !email.trim() || password.length < MIN_PASSWORD_LENGTH) return
+    registerMutation.mutate()
   }
 
   return (
@@ -66,7 +81,8 @@ function SignIn() {
         className="relative mt-6 flex flex-col gap-3"
         onSubmit={(event) => {
           event.preventDefault()
-          if (!isSignup) handleLogin()
+          if (isSignup) handleRegister()
+          else handleLogin()
         }}
       >
         {isSignup && (
@@ -94,19 +110,27 @@ function SignIn() {
           placeholder="Enter password"
           className="rounded-full border border-white/60 bg-white/70 px-5 py-3 text-base text-slate-900 shadow-md shadow-slate-300/40 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
         />
+        {isSignup && (
+          <p className="px-1 text-xs text-slate-400">At least {MIN_PASSWORD_LENGTH} characters.</p>
+        )}
 
         {isSignup ? (
           <>
             <button
-              type="button"
-              disabled
-              className="mt-2 w-full cursor-not-allowed rounded-full bg-slate-300 py-3 text-sm font-semibold text-slate-500"
+              type="submit"
+              disabled={
+                !name.trim() ||
+                !email.trim() ||
+                password.length < MIN_PASSWORD_LENGTH ||
+                registerMutation.isPending
+              }
+              className="mt-2 w-full rounded-full bg-slate-900 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500"
             >
-              Continue
+              {registerMutation.isPending ? 'Creating account...' : 'Continue'}
             </button>
-            <p className="text-center text-xs text-slate-400">
-              Email sign-up is coming soon — use Google for now.
-            </p>
+            {registerMutation.isError && (
+              <p className="text-center text-xs text-red-600">{(registerMutation.error as Error).message}</p>
+            )}
           </>
         ) : (
           <>

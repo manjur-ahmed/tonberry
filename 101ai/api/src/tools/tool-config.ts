@@ -16,6 +16,10 @@ export interface ToolConfig {
   model: string;
   systemPrompt: string;
   responseSchema?: ResponseSchema;
+  // Overrides OpenAiService's default MAX_COMPLETION_TOKENS when a tool
+  // needs a deliberately smaller (or larger) ceiling — e.g. story-explainer
+  // sizing its cap to roughly one minute of reading time.
+  maxCompletionTokens?: number;
 }
 
 interface ToolDefinition {
@@ -23,6 +27,7 @@ interface ToolDefinition {
   task: string;
   tone?: string;
   responseSchema?: ResponseSchema;
+  maxCompletionTokens?: number;
 }
 
 // Most tools should be conversational and friendly, not just
@@ -251,6 +256,76 @@ const MUSIC_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
   },
 };
 
+// Same 'kind' escape hatch as the other tools, for the same reason: strict
+// json_schema can't leave `title`/`explanation` null for a plain "hi" or a
+// request that hasn't named a story yet, so 'chat' carries the reply in
+// `reply` instead.
+const STORY_EXPLAINER_SCHEMA: ResponseSchema = {
+  name: 'story_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      title: { type: ['string', 'null'] },
+      year: { type: ['string', 'null'] },
+      explanation: { type: ['string', 'null'] },
+    },
+    required: ['kind', 'reply', 'title', 'year', 'explanation'],
+    additionalProperties: false,
+  },
+};
+
+// Same 'kind' escape hatch as the other tools — also doubles as the "I'm
+// not confident enough to state this as fact" path (see the task prompt
+// below), so a request the model can't verify comes back as a plain,
+// honest `reply` instead of a schema-shaped but fabricated quote.
+//
+// Deliberately no `url`/`videoUrl` field: a model-generated link is exactly
+// the kind of thing that gets hallucinated (a plausible-looking but dead or
+// wrong URL), which is worse than no link at all for a tool whose whole
+// point is proof. The frontend instead builds a YouTube *search* link out
+// of the verified text/speaker/source fields below — always a real,
+// resolvable URL, never a fabricated one.
+const QUOTE_FINDER_SCHEMA: ResponseSchema = {
+  name: 'quote_finder',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['quotes', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      quotes: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            text: { type: 'string' },
+            speaker: { type: ['string', 'null'] },
+            source: { type: 'string' },
+            sourceType: {
+              type: 'string',
+              enum: [
+                'movie',
+                'tv-show',
+                'book',
+                'song',
+                'interview',
+                'video',
+                'other',
+              ],
+            },
+            year: { type: ['string', 'null'] },
+          },
+          required: ['text', 'speaker', 'source', 'sourceType', 'year'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['kind', 'reply', 'quotes'],
+    additionalProperties: false,
+  },
+};
+
 const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   'word-helper': {
     model: 'gpt-4o-mini',
@@ -304,6 +379,37 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     ].join(' '),
     responseSchema: MUSIC_RECOMMENDATIONS_SCHEMA,
   },
+  'story-explainer': {
+    model: 'gpt-4o-mini',
+    task: [
+      'You help the user understand the plot of a book, film, or TV show they name.',
+      'First decide `kind`: use "explanation" once a specific book, film, or show has been named — by this message or established earlier in the conversation — and you\'re ready to explain it. Use "chat" for greetings, small talk, thanks, or when nothing specific has been named yet and you need to ask which story they mean. For "chat", write a short, warm reply in `reply` and leave `title`/`year`/`explanation` null.',
+      'For "explanation": leave `reply` null. title should identify what THIS specific reply covers, not just repeat the bare story name every time — when the user asks about the whole story, title is just its real name (e.g. "The Batman"); when they ask about one specific part, angle, or question instead (an ending, a character, a timeline detail, a theme), title should combine that angle with the story name in a short natural phrase instead (e.g. "The Ending of The Batman", "The Batman\'s Timeline", "Who the Riddler Is in The Batman") — this is what tells two different saved explanations about the same story apart, so never reuse the exact bare story name as title for a narrower question. Keep it under about 6 words and don\'t quote the user\'s question verbatim. year is the year it was originally released or published, as a string (e.g. "2022") — leave it null rather than guessing if you\'re not confident of the real figure.',
+      "explanation walks through what happens — the actual plot, not just a vague blurb — in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no literary or technical jargon, no assumed background knowledge. If the user asks about a specific part, character, or theme rather than the whole story, or asks for a spoiler-free version, answer that instead of the full plot.",
+      "Use as much of your available response length as you need to explain clearly and completely — don't cut it artificially short, but don't pad it with filler either.",
+      "If you don't actually recognize the story named, say so honestly in `explanation` rather than inventing a plausible-sounding but wrong plot.",
+    ].join(' '),
+    responseSchema: STORY_EXPLAINER_SCHEMA,
+    // ~11-12 reading age prose reads at roughly 150-180 wpm; a 1-minute
+    // read is therefore ~150-180 words, or roughly 200-240 tokens. This
+    // leaves headroom above that for the title field, JSON structure, and
+    // a safety margin so a strict-schema reply doesn't get cut off
+    // mid-object (which would fail to parse) — see MAX_COMPLETION_TOKENS
+    // in openai.service.ts for the app-wide default this overrides.
+    maxCompletionTokens: 400,
+  },
+  'quote-finder': {
+    model: 'gpt-4o-mini',
+    task: [
+      'You help the user find a specific quote from a book, film, TV show, song, interview, or video, with an official, checkable source.',
+      'This is a lookup tool, not a creative one — accuracy matters more than being helpful-sounding. Only include a quote in `quotes` if you are genuinely confident both the wording and the source (who said it, and exactly where it\'s from) are correct. If you only recall the gist, are unsure of the exact wording, don\'t recognize the reference, or are not sure it was ever actually said this way, do NOT guess or invent a plausible-sounding quote, speaker, or source — use kind: "chat" instead and say plainly that you\'re not confident enough to state it as fact (you can still share what you vaguely recall, clearly labelled as uncertain, rather than presenting it as verified). Fabricating a quote that sounds real is the single worst failure mode for this tool, worse than not answering.',
+      'First decide `kind`: use "quotes" only when you have at least one quote you\'re confident about per the rule above. Use "chat" for greetings, small talk, an under-specified request that needs clarifying, or the low-confidence case above. For "chat", write the reply in `reply` and leave `quotes` an empty array.',
+      'For "quotes": leave `reply` null. If the user asks for one specific quote (e.g. "what does X say when...", "the line about Y from Z"), return exactly that one. If they ask more broadly for quotes about a topic or theme from a specific work or person, return up to 3 that best fit — every one still independently held to the same confidence rule, never padded out to hit a count.',
+      'text is the quote exactly as said, word for word — no paraphrasing. speaker is who said it (a character name for fiction, a real name for an interview/speech). source is the specific title it\'s from (film/show/book/song/interview title), not a vague description. sourceType is the closest fit. year is the release/air year as a string if you know it.',
+      'Never repeat a quote already given earlier in this conversation unless the user asks for it again.',
+    ].join(' '),
+    responseSchema: QUOTE_FINDER_SCHEMA,
+  },
 };
 
 // null means "not wired up yet" — OpenAiService falls back to a canned
@@ -320,5 +426,6 @@ export function getToolConfig(slug: string): ToolConfig | null {
       .filter(Boolean)
       .join('\n\n'),
     responseSchema: definition.responseSchema,
+    maxCompletionTokens: definition.maxCompletionTokens,
   };
 }
