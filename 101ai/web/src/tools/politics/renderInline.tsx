@@ -1,12 +1,10 @@
 import type { ReactNode } from 'react'
 
-// The only markup either tool is ever asked to produce (see
-// tool-config.ts's formattingInstruction for each) — science-explainer
-// bolds key terms, history-helper bolds dates and italicizes names, both
-// with this same **bold**/*italic* markdown subset. Deliberately not a
-// full markdown parser (no headers/lists/links) — this app has no other
-// use for one, so a small regex pass is enough rather than pulling in a
-// dependency for two inline styles.
+// The only markup this tool is ever asked to produce (see tool-config.ts's
+// formattingInstruction) — bolding law/act names with **double asterisks**.
+// Deliberately not a full markdown parser (no headers/lists/links) — this
+// app has no other use for one, so a small regex pass is enough rather than
+// pulling in a dependency for two inline styles.
 export function renderInline(text: string): ReactNode[] {
   const nodes: ReactNode[] = []
   const pattern = /\*\*(.+?)\*\*|\*(.+?)\*/g

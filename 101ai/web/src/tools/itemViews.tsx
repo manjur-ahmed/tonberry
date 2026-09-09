@@ -6,11 +6,17 @@ import BookRecommendationsItemView from './book-recommendations/ItemView'
 import MusicRecommendationsItemView from './music-recommendations/ItemView'
 import QuoteFinderItemView from './quote-finder/ItemView'
 import StoryExplainerItemView from './story-explainer/ItemView'
-import TopicExplainerItemView from './topic-explainer/ItemView'
+import ScienceExplainerItemView from './science-explainer/ItemView'
+import HistoryHelperItemView from './history-helper/ItemView'
 import CookingItemView from './cooking/ItemView'
 import DietItemView from './diet/ItemView'
 import SelfCareItemView from './self-care/ItemView'
 import TechItemView from './tech/ItemView'
+import HomeItemView from './home/ItemView'
+import CarItemView from './car/ItemView'
+import DiyItemView from './diy/ItemView'
+import PoliticsItemView from './politics/ItemView'
+import GeneralHealthItemView from './general-health/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -26,13 +32,17 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'music-recommendations': MusicRecommendationsItemView,
   'quote-finder': QuoteFinderItemView,
   'story-explainer': StoryExplainerItemView,
-  'science-explainer': TopicExplainerItemView,
-  'history-helper': TopicExplainerItemView,
+  'science-explainer': ScienceExplainerItemView,
+  'history-helper': HistoryHelperItemView,
   'cooking': CookingItemView,
   'diet': DietItemView,
   'self-care': SelfCareItemView,
   'tech': TechItemView,
-  'politics': TopicExplainerItemView,
+  'home': HomeItemView,
+  'car': CarItemView,
+  'diy': DiyItemView,
+  'politics': PoliticsItemView,
+  'general-health': GeneralHealthItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

@@ -7,11 +7,10 @@ import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/saved
 import { renderInline } from './renderInline'
 import type { ResponseViewProps } from '../responseViews'
 
-// Shared by science-explainer and history-helper — both save one item per
-// *chat* rather than one per reply (see ItemsService.upsertSection), so a
-// rabbit-hole conversation covering several angles on one broad subject
-// reads back as one document with subheadings, not a pile of items each
-// overwriting the last.
+// Saves one item per *chat* rather than one per reply (see
+// ItemsService.upsertSection), so a rabbit-hole conversation covering
+// several angles on one broad subject reads back as one document with
+// subheadings, not a pile of items each overwriting the last.
 
 // A single turn's reply — what tool-config.ts's TOPIC_EXPLAINER_SCHEMA
 // produces for one message.
@@ -61,7 +60,7 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function TopicExplainerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function HistoryHelperResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
   let document: TopicDocument | null = null
   let turn: TopicTurn | null = null
   let chatReply: string | null = null
@@ -153,4 +152,4 @@ function TopicExplainerResponse({ content, toolSlug, chatId, messageId, readOnly
   )
 }
 
-export default TopicExplainerResponse
+export default HistoryHelperResponse

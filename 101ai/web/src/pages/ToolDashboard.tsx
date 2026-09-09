@@ -31,6 +31,10 @@ const DENSE_ITEM_TOOLS = new Set([
   'self-care',
   'tech',
   'politics',
+  'home',
+  'car',
+  'diy',
+  'general-health',
 ])
 
 function ToolDashboard() {

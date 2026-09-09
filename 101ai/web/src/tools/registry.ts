@@ -186,6 +186,7 @@ export const tools: Tool[] = [
     description: 'Get general health guidance.',
     icon: '🩺',
     category: 'Health & Wellbeing',
+    warning: "This isn't a diagnosis or medical advice — for symptoms or anything health-related, always check with a doctor or other qualified healthcare professional.",
   },
   {
     slug: 'self-care',
@@ -272,6 +273,8 @@ export const tools: Tool[] = [
     description: 'Get help fixing something at home.',
     icon: '🏠',
     category: 'How-to & Fixes',
+    warning:
+      "This isn't professional advice, and we're not liable for any damage or injury from following it. For electrics, gas, or structural work, use a qualified tradesperson — some jobs genuinely aren't safe to DIY.",
   },
   {
     slug: 'car',
@@ -279,6 +282,8 @@ export const tools: Tool[] = [
     description: 'Get help with a car problem.',
     icon: '🚗',
     category: 'How-to & Fixes',
+    warning:
+      "This isn't professional advice, and we're not liable for any damage or injury from following it. For brakes, steering, or other safety-critical parts, use a qualified mechanic.",
   },
   {
     slug: 'diy',
@@ -286,6 +291,8 @@ export const tools: Tool[] = [
     description: 'Get step-by-step DIY guidance.',
     icon: '🔨',
     category: 'How-to & Fixes',
+    warning:
+      "This isn't professional advice, and we're not liable for any damage or injury from following it. Work safely, and use a qualified professional for electrics, gas, structural changes, or anything else you're unsure about.",
   },
   {
     slug: 'tech',

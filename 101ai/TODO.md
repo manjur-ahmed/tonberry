@@ -42,7 +42,7 @@
   - [ ] Shopping
   - [ ] Clothing
   - [ ] Insurance
-  - [ ] General Health
+  - [x] General Health
   - [x] Diet
   - [x] Self Care
   - [ ] Steps Planner
@@ -50,11 +50,11 @@
   - [x] Cooking
   - [ ] Day Activity
   - [ ] Holiday Planning
-  - [x] Politics
+  - [x] Politics & Law
   - [ ] News
-  - [ ] Home
-  - [ ] Car
-  - [ ] DIY
+  - [x] Home
+  - [x] Car
+  - [x] DIY
   - [x] Tech
   - [ ] Set up additional API requirements for supplemental data
 - [ ] Improve prompts on all wired-up tools — the earliest ones (Word Helper, Film/Book/Music Recommendations) predate patterns established by later tools: confidence-gating against hallucination (Quote Finder), a stable per-item key so an evolving thing gets amended in place instead of forked or lost (Cooking's `dishKey`/Diet's `planKey`), tool-specific tone, and deliberately minimal instruction where the model handles nuance better on its own (Diet). Revisit each tool's `tool-config.ts` entry against these patterns for consistency, not just the ones that happen to need a new feature
@@ -109,4 +109,4 @@
 
 ---
 
-**Progress: 12/96 tasks complete (13%)**
+**Progress: 16/96 tasks complete (17%)**

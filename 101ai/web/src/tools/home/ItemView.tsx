@@ -1,16 +1,16 @@
-interface TechGuideItemData {
+interface HomeGuideItemData {
   guideTitle: string
   steps: string[]
 }
 
-function isTechGuideItemData(value: unknown): value is TechGuideItemData {
+function isHomeGuideItemData(value: unknown): value is HomeGuideItemData {
   if (!value || typeof value !== 'object') return false
   const data = value as Record<string, unknown>
   return typeof data.guideTitle === 'string' && Array.isArray(data.steps)
 }
 
-function TechItemView({ title, data }: { title: string; data: unknown }) {
-  if (!isTechGuideItemData(data)) {
+function HomeItemView({ title, data }: { title: string; data: unknown }) {
+  if (!isHomeGuideItemData(data)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <p className="text-sm font-semibold text-slate-900">{title}</p>
@@ -29,4 +29,4 @@ function TechItemView({ title, data }: { title: string; data: unknown }) {
   )
 }
 
-export default TechItemView
+export default HomeItemView

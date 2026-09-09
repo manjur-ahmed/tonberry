@@ -6,11 +6,17 @@ import BookRecommendationsResponse from './book-recommendations/ResponseView'
 import MusicRecommendationsResponse from './music-recommendations/ResponseView'
 import StoryExplainerResponse from './story-explainer/ResponseView'
 import QuoteFinderResponse from './quote-finder/ResponseView'
-import TopicExplainerResponse from './topic-explainer/ResponseView'
+import ScienceExplainerResponse from './science-explainer/ResponseView'
+import HistoryHelperResponse from './history-helper/ResponseView'
 import CookingResponse from './cooking/ResponseView'
 import DietResponse from './diet/ResponseView'
 import SelfCareResponse from './self-care/ResponseView'
 import TechResponse from './tech/ResponseView'
+import HomeResponse from './home/ResponseView'
+import CarResponse from './car/ResponseView'
+import DiyResponse from './diy/ResponseView'
+import PoliticsResponse from './politics/ResponseView'
+import GeneralHealthResponse from './general-health/ResponseView'
 
 export type SaveStatus = 'saving' | 'saved' | 'error' | 'limit-reached'
 
@@ -42,13 +48,17 @@ const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'music-recommendations': MusicRecommendationsResponse,
   'story-explainer': StoryExplainerResponse,
   'quote-finder': QuoteFinderResponse,
-  'science-explainer': TopicExplainerResponse,
-  'history-helper': TopicExplainerResponse,
+  'science-explainer': ScienceExplainerResponse,
+  'history-helper': HistoryHelperResponse,
   'cooking': CookingResponse,
   'diet': DietResponse,
   'self-care': SelfCareResponse,
   'tech': TechResponse,
-  'politics': TopicExplainerResponse,
+  'home': HomeResponse,
+  'car': CarResponse,
+  'diy': DiyResponse,
+  'politics': PoliticsResponse,
+  'general-health': GeneralHealthResponse,
 }
 
 export function getResponseView(slug: string): ComponentType<ResponseViewProps> {

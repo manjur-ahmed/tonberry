@@ -6,7 +6,7 @@ import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import type { ResponseViewProps } from '../responseViews'
 
-interface TechGuide {
+interface HomeGuide {
   // Stable per-problem id assigned by the model (see tool-config.ts) — same
   // mechanism as cooking's dishKey/diet's planKey. Reused across every
   // reply about the same problem as it gets refined with what the user
@@ -19,11 +19,12 @@ interface TechGuide {
   steps: string[]
 }
 
-// `kind: 'chat'` replies (greetings, small talk, or needing more detail
-// about the problem first — see tool-config.ts) carry the same envelope
-// with the rest null and the reply text in `reply` instead; only a 'guide'
-// reply renders as a guide or gets auto-saved.
-function isTechGuide(value: unknown): value is TechGuide {
+// `kind: 'chat'` replies (greetings, small talk, needing more detail
+// first, or the model declining to give hands-on steps for a job that
+// needs a qualified tradesperson — see tool-config.ts) carry the same
+// envelope with the rest null and the reply text in `reply` instead; only
+// a 'guide' reply renders as a guide or gets auto-saved.
+function isHomeGuide(value: unknown): value is HomeGuide {
   if (!value || typeof value !== 'object') return false
   const data = value as Record<string, unknown>
   if (data.kind === 'chat') return false
@@ -36,12 +37,12 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function TechResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
-  let data: TechGuide | null = null
+function HomeResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+  let data: HomeGuide | null = null
   let chatReply: string | null = null
   try {
     const parsed = JSON.parse(content)
-    if (isTechGuide(parsed)) data = parsed
+    if (isHomeGuide(parsed)) data = parsed
     else chatReply = getChatReply(parsed)
   } catch {
     data = null
@@ -110,4 +111,4 @@ function TechResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveSt
   )
 }
 
-export default TechResponse
+export default HomeResponse

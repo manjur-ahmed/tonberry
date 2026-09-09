@@ -11,11 +11,10 @@ function isTopicItemData(value: unknown): value is TopicItemData {
   return typeof data.title === 'string' && Array.isArray(data.sections)
 }
 
-// Shared by science-explainer and history-helper (see ResponseView) — the
-// tile shows the umbrella topic, how many subheadings it's grown to, and a
-// line-clamp-3 preview of the first one, same trick ToolCard/story-explainer
-// use for a trailing ellipsis.
-function TopicExplainerItemView({ title, data }: { title: string; data: unknown }) {
+// The tile shows the umbrella topic, how many subheadings it's grown to,
+// and a line-clamp-3 preview of the first one, same trick ToolCard/
+// story-explainer use for a trailing ellipsis.
+function HistoryHelperItemView({ title, data }: { title: string; data: unknown }) {
   if (!isTopicItemData(data) || data.sections.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -35,4 +34,4 @@ function TopicExplainerItemView({ title, data }: { title: string; data: unknown 
   )
 }
 
-export default TopicExplainerItemView
+export default HistoryHelperItemView

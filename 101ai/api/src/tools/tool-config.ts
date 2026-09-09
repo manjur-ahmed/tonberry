@@ -558,11 +558,18 @@ const SELF_CARE_PLAN_SCHEMA: ResponseSchema = {
   },
 };
 
-// Same 'kind' escape hatch, same dedup mechanism as RECIPE_SCHEMA/
-// PLAN_SCHEMA (problemKey is the tech-support counterpart to dishKey/
-// planKey) — but no ingredients-style second list, since a troubleshooting
-// guide is just one ordered set of steps, refined in place as the user
-// reports back what they tried and what happened.
+// Shared shape for every "diagnose, then work through ordered steps,
+// refining as the user reports back what happened" tool — Tech, Home, Car,
+// DIY. Same 'kind' escape hatch, same dedup mechanism as RECIPE_SCHEMA/
+// PLAN_SCHEMA (guideKey is this family's counterpart to dishKey/planKey)
+// — but no ingredients-style second list, since a guide here is just one
+// ordered set of steps, not a recipe. Each tool gets its own separate
+// schema object below (not this one reused) per the same reasoning as
+// DIET_PLAN_SCHEMA/SELF_CARE_PLAN_SCHEMA — structurally identical for now,
+// kept independent since they may need to diverge later. The frontend's
+// StepGuideResponse/ItemView are still shared across all four, since
+// that's just rendering logic keyed off this (currently identical) JSON
+// shape, not a contract each tool needs to keep in lockstep.
 const TECH_GUIDE_SCHEMA: ResponseSchema = {
   name: 'tech_guide',
   schema: {
@@ -570,14 +577,121 @@ const TECH_GUIDE_SCHEMA: ResponseSchema = {
     properties: {
       kind: { type: 'string', enum: ['guide', 'chat'] },
       reply: { type: ['string', 'null'] },
-      problemKey: { type: ['string', 'null'] },
-      problemTitle: { type: ['string', 'null'] },
+      guideKey: { type: ['string', 'null'] },
+      guideTitle: { type: ['string', 'null'] },
       steps: { type: 'array', items: { type: 'string' } },
     },
-    required: ['kind', 'reply', 'problemKey', 'problemTitle', 'steps'],
+    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
     additionalProperties: false,
   },
 };
+
+// Structurally identical to TECH_GUIDE_SCHEMA — kept as its own object,
+// see the comment there.
+const HOME_GUIDE_SCHEMA: ResponseSchema = {
+  name: 'home_guide',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['guide', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      guideKey: { type: ['string', 'null'] },
+      guideTitle: { type: ['string', 'null'] },
+      steps: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to TECH_GUIDE_SCHEMA — kept as its own object,
+// see the comment there.
+const CAR_GUIDE_SCHEMA: ResponseSchema = {
+  name: 'car_guide',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['guide', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      guideKey: { type: ['string', 'null'] },
+      guideTitle: { type: ['string', 'null'] },
+      steps: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to TECH_GUIDE_SCHEMA — kept as its own object,
+// see the comment there.
+const DIY_GUIDE_SCHEMA: ResponseSchema = {
+  name: 'diy_guide',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['guide', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      guideKey: { type: ['string', 'null'] },
+      guideTitle: { type: ['string', 'null'] },
+      steps: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to TOPIC_EXPLAINER_SCHEMA/POLITICS_SCHEMA — kept
+// as its own object, see the comment on POLITICS_SCHEMA for why.
+const GENERAL_HEALTH_SCHEMA: ResponseSchema = {
+  name: 'general_health_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Shared by Tech/Home/Car/DIY's task text below — spelled out once so
+// they can't drift out of sync on the part that isn't actually
+// activity-specific. activityDescription slots into "You help the user
+// ___", e.g. "troubleshoot and fix a tech problem". safetyGuidance is the
+// one genuinely per-tool piece: when to say "get a professional" instead
+// of walking through a step yourself.
+function buildStepGuideTask(
+  activityDescription: string,
+  safetyGuidance: string,
+): string {
+  return [
+    `You help the user ${activityDescription}, working through it step by step as they try things and report back what happened.`,
+    'First decide `kind`: use "guide" once you have enough to suggest concrete steps to try AND it\'s actually safe to walk them through it yourself (see below for when it isn\'t). Use "chat" for greetings, small talk, needing more detail first, or when you\'ve decided NOT to give hands-on steps for safety reasons instead — leaving the guide fields null and writing your reply in `reply` instead.',
+    'For "guide": leave `reply` null. Treat every reply as the complete, current set of steps given everything they\'ve told you so far — including what they\'ve already tried and what happened when they did. If a step turned out not to work, or they hit an edge case, revise the guide around that rather than blindly repeating the old step or only describing the new detail in isolation.',
+    'A single chat can end up covering more than one unrelated thing — guideKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated guideKey the first time it comes up, and reuse that EXACT SAME guideKey on every later reply about the same thing, however much the steps change. Only assign a new guideKey when they bring up something genuinely different, unrelated.',
+    'guideTitle should describe it plainly — update it if things become clearer as you go.',
+    'steps is the ordered list of things to do, clear enough to follow without confusion — the CURRENT best steps given everything you know now, not a running log of everything ever suggested.',
+    safetyGuidance,
+    "If you're not confident about something, say so honestly rather than inventing a plausible-sounding answer.",
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   'word-helper': {
@@ -718,16 +832,46 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   },
   tech: {
     model: 'gpt-4o-mini',
-    task: [
-      'You help the user troubleshoot and fix a tech problem, working through it step by step as they try things and report back what happened.',
-      'First decide `kind`: use "guide" once you have enough to suggest concrete steps to try. Use "chat" for greetings, small talk, or when you need more detail first (what device, what error, what they\'ve already tried) — leaving the guide fields null and writing your reply in `reply` instead.',
-      'For "guide": leave `reply` null. Treat every reply as the complete, current set of steps for THIS problem, taking into account everything they\'ve told you so far — including what they\'ve already tried and what happened when they did. If a step turned out not to work, or they hit an edge case (a different error, something about their specific setup), revise the guide around that rather than blindly repeating the old step or only describing the new detail in isolation.',
-      'A single chat can end up covering more than one unrelated problem (e.g. Wi-Fi trouble, then separately a printer issue) — problemKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated problemKey the first time a problem comes up (e.g. "wifi-not-connecting"), and reuse that EXACT SAME problemKey on every later reply about that same problem, however much the steps change. Only assign a new problemKey when they bring up a genuinely different, unrelated problem.',
-      'problemTitle should describe the problem plainly (e.g. "Wi-Fi Won\'t Connect on Windows Laptop") — update it if the diagnosis becomes clearer as you go.',
-      'steps is the ordered list of things to try, clear enough to follow without confusion — the CURRENT best steps given everything you know now, not a running log of everything ever suggested.',
+    task: buildStepGuideTask(
+      'troubleshoot and fix a tech problem',
       "If you're not confident about a fix, say so honestly rather than inventing a plausible-sounding one, and suggest what information would help narrow it down.",
-    ].join(' '),
+    ),
     responseSchema: TECH_GUIDE_SCHEMA,
+  },
+  home: {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: buildStepGuideTask(
+      'fix or maintain something at home',
+      "Some jobs are not safe or legal to walk someone through doing themselves — mains electrical work beyond a like-for-like socket/switch/bulb swap (especially anything inside a consumer unit/fuse board, or adding a new circuit), gas work of any kind, and structural work (load-bearing walls, roofing). For these, do NOT provide the actual hands-on steps, even with a caution added on top — use kind:\"chat\" instead, say plainly that this needs a qualified, certified tradesperson and why, and help with what's genuinely safe for them to do themselves (e.g. finding a good tradesperson, understanding roughly what's involved, prepping the area). For everything else, help normally. Building codes and certification requirements vary by country, so if the user's country is given below, factor that in (e.g. whether a job legally requires a certified professional or permit there).",
+    ),
+    responseSchema: HOME_GUIDE_SCHEMA,
+  },
+  car: {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: buildStepGuideTask(
+      'diagnose and fix a car problem',
+      'Some jobs are not safe to walk someone through doing themselves — anything involving brakes, steering, airbags, or fuel systems. For these, do NOT provide the actual hands-on repair steps, even with a caution added on top — use kind:"chat" instead, say plainly that this needs a qualified mechanic and why, and help with what\'s genuinely safe (e.g. what symptoms to describe to a mechanic, roughly what might be wrong, finding a good one). For everything else (routine maintenance, diagnosing non-safety-critical issues), help normally. Roadworthiness rules vary by country (e.g. the UK\'s MOT vs. other countries\' inspection regimes), so if the user\'s country is given below, answer with that in mind.',
+    ),
+    responseSchema: CAR_GUIDE_SCHEMA,
+  },
+  diy: {
+    model: 'gpt-4o-mini',
+    task: buildStepGuideTask(
+      'work through a DIY project',
+      'Some jobs are not safe or legal to walk someone through doing themselves — mains electrical work beyond a like-for-like socket/switch/bulb swap, gas work of any kind, and structural changes (load-bearing walls, roofing). For these, do NOT provide the actual hands-on steps, even with a caution added on top — use kind:"chat" instead, say plainly that this needs a qualified professional and why. Ordinary DIY with hand or power tools (cutting, drilling, assembling, painting, and similar) is fine to guide normally, including the usual safety precautions (eye protection, secure workpieces, etc.) as part of the steps themselves.',
+    ),
+    responseSchema: DIY_GUIDE_SCHEMA,
+  },
+  'general-health': {
+    model: 'gpt-4o-mini',
+    task: buildTopicExplainerTask(
+      'health, symptoms, or medical conditions',
+      'In sectionBody, wrap important medical terms or condition names in **double asterisks** to bold them (e.g. **hypertension**). Be selective: bold the specific terms that matter most to this point, not every medical-sounding word.',
+      'You are not a doctor and this is not a diagnosis or medical advice — explain concepts and general information, never tell someone what condition they have or recommend specific medication or dosages. If what they describe sounds urgent or serious (e.g. chest pain, difficulty breathing, signs of a stroke), say plainly and directly that they should seek medical attention promptly, rather than continuing the conversation as normal.',
+    ),
+    responseSchema: GENERAL_HEALTH_SCHEMA,
   },
   politics: {
     model: 'gpt-4o-mini',
