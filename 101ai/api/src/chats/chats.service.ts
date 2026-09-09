@@ -79,6 +79,7 @@ export class ChatsService {
     toolSlug: string,
     firstMessage: string,
     skipRouter = false,
+    userCountry: string | null = null,
   ): Promise<ChatResult> {
     const routerResult = skipRouter
       ? { redirect: false }
@@ -99,6 +100,7 @@ export class ChatsService {
       userId,
       chatId,
       messageId: assistantMessageId,
+      userCountry,
     });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     const chat = this.chatsRepository.create({
@@ -183,6 +185,7 @@ export class ChatsService {
     chatId: string,
     content: string,
     skipRouter = false,
+    userCountry: string | null = null,
   ): Promise<ChatResult> {
     const chat = await this.getOwnedChat(userId, chatId);
 
@@ -206,6 +209,7 @@ export class ChatsService {
       userId,
       chatId: chat.id,
       messageId: assistantMessageId,
+      userCountry,
     });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     await this.messagesRepository.save([

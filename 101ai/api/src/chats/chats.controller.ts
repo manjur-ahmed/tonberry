@@ -23,6 +23,7 @@ export class ChatsController {
       slug,
       dto.message,
       dto.skipRouter,
+      user.country,
     );
   }
 
@@ -50,6 +51,7 @@ export class ChatsController {
       chatId,
       dto.content,
       dto.skipRouter,
+      user.country,
     );
   }
 

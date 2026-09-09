@@ -9,6 +9,8 @@ import StoryExplainerItemView from './story-explainer/ItemView'
 import TopicExplainerItemView from './topic-explainer/ItemView'
 import CookingItemView from './cooking/ItemView'
 import DietItemView from './diet/ItemView'
+import SelfCareItemView from './self-care/ItemView'
+import TechItemView from './tech/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -28,6 +30,9 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'history-helper': TopicExplainerItemView,
   'cooking': CookingItemView,
   'diet': DietItemView,
+  'self-care': SelfCareItemView,
+  'tech': TechItemView,
+  'politics': TopicExplainerItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

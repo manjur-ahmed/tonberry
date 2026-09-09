@@ -193,6 +193,8 @@ export const tools: Tool[] = [
     description: 'Get self-care ideas and routines.',
     icon: '🧘',
     category: 'Health & Wellbeing',
+    warning: "This isn't professional advice — for a skin concern, see a pharmacist or beautician; for anything else about your health or wellbeing, check with a qualified professional too.",
+    promoteMemory: true,
   },
   {
     slug: 'steps-planner',
@@ -248,10 +250,12 @@ export const tools: Tool[] = [
   // Politics & Current Affairs
   {
     slug: 'politics',
-    name: 'Politics',
+    name: 'Politics & Law',
     description: 'Understand a political topic or policy.',
     icon: '🏛️',
     category: 'Politics & Current Affairs',
+    warning:
+      "This isn't legal advice — for a specific legal situation, speak to a qualified lawyer. Views expressed here are the AI's own and don't represent the company.",
   },
   {
     slug: 'news',

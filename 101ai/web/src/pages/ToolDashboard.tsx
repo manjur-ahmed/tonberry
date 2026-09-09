@@ -28,6 +28,9 @@ const DENSE_ITEM_TOOLS = new Set([
   'history-helper',
   'cooking',
   'diet',
+  'self-care',
+  'tech',
+  'politics',
 ])
 
 function ToolDashboard() {

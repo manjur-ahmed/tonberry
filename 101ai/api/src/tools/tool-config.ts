@@ -28,6 +28,12 @@ interface ToolDefinition {
   tone?: string;
   responseSchema?: ResponseSchema;
   maxCompletionTokens?: number;
+  // Opts into telling the model which country the user is in (see
+  // buildResidencyContext) — only relevant for a tool where the right
+  // answer actually depends on jurisdiction, e.g. Politics & Law's "what's
+  // the law on running a red light" needing to know whose law. Most tools
+  // have no use for this, so it's opt-in rather than sent to every tool.
+  usesResidencyContext?: boolean;
 }
 
 // Most tools should be conversational and friendly, not just
@@ -55,6 +61,23 @@ function buildScopeGuard(slug: string): string {
     "unrelated to this chat so far): don't attempt it — briefly say this " +
     "isn't the right tool for that and suggest they switch to the one " +
     'that is, rather than guessing which one by name.'
+  );
+}
+
+// Only added for a tool that opts in via usesResidencyContext — most tools
+// have no use for the user's location. countryCode is User.country
+// (ISO 3166-1 alpha-2, e.g. "GB") straight from the DB, not translated to a
+// full country name first: the model already knows these codes well, and a
+// translation step is just another place a wrong mapping could creep in.
+function buildResidencyContext(countryCode: string): string {
+  return (
+    `The user is based in ${countryCode} (an ISO 3166-1 country code). ` +
+    'When a question depends on jurisdiction — a specific law, traffic ' +
+    'rule, tax, or policy — answer for this country by default, and name ' +
+    'the country explicitly in your answer (e.g. "In the UK, ...") rather ' +
+    "than leaving it ambiguous which country you mean. If they've clearly " +
+    'asked about a different country or region instead, answer for that ' +
+    'one instead.'
   );
 }
 
@@ -369,16 +392,55 @@ const TOPIC_EXPLAINER_SCHEMA: ResponseSchema = {
   },
 };
 
-// Shared by science-explainer and history-helper's task text below —
-// spelled out once so the two tools' prompts can't drift out of sync on
+// Structurally identical to TOPIC_EXPLAINER_SCHEMA — kept as its own
+// object rather than reused by politics too, since these tools' schemas
+// may need to diverge independently later even though they're currently
+// the same shape. The frontend's TopicExplainerResponse/ItemView
+// components are still shared across all three, since that's just
+// rendering logic keyed off the (currently identical) JSON shape, not a
+// contract each tool needs to keep in lockstep.
+const POLITICS_SCHEMA: ResponseSchema = {
+  name: 'politics_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Shared by science-explainer, history-helper, and politics' task text
+// below — spelled out once so the tools' prompts can't drift out of sync on
 // the part that isn't actually subject-specific. formattingInstruction is
-// the one genuinely per-tool piece: what to bold/italicize in sectionBody
-// (see web/src/tools/topic-explainer/ResponseView.tsx's renderInline for
-// the matching **bold**/*italic* markdown-subset renderer — this is the
-// only markup either tool should ever produce, nothing else is parsed).
+// the one genuinely per-tool piece up to now: what to bold/italicize in
+// sectionBody (see web/src/tools/topic-explainer/ResponseView.tsx's
+// renderInline for the matching **bold**/*italic* markdown-subset renderer
+// — this is the only markup any of these tools should ever produce,
+// nothing else is parsed). extraGuidance is appended after the shared
+// skeleton for a tool whose requirements genuinely go beyond a formatting
+// swap — e.g. politics needing a no-legal-advice/no-loophole-finding
+// guardrail neither science nor history needs.
 function buildTopicExplainerTask(
   subjectNoun: string,
   formattingInstruction: string,
+  extraGuidance?: string,
 ): string {
   return [
     `You help the user understand a ${subjectNoun} topic they ask about, potentially across a long back-and-forth covering several angles on it.`,
@@ -388,9 +450,12 @@ function buildTopicExplainerTask(
     'sectionAction is "continue" only when this message is a direct follow-up asking for more on the EXACT same specific point you just covered in your last reply (e.g. "can you explain that more", "why though", "go on") — in that case reuse the exact same sectionHeading as last time. Use "new" for anything else: a different specific question, a different angle, or the first question in the conversation.',
     'sectionBody is the actual explanation, in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no jargon, no assumed background knowledge. When sectionAction is "continue", write only the NEW content to add — it gets appended after what you already said, so don\'t repeat the earlier part.',
     formattingInstruction,
+    extraGuidance,
     "Use as much of your available response length as you need to explain clearly and completely — don't cut it artificially short, but don't pad it with filler either.",
     "If you don't actually know the topic well, say so honestly in `sectionBody` rather than inventing a plausible-sounding but wrong explanation.",
-  ].join(' ');
+  ]
+    .filter(Boolean)
+    .join(' ');
 }
 
 // Same 'kind' escape hatch as every other tool, for the same reason.
@@ -443,7 +508,15 @@ const RECIPE_SCHEMA: ResponseSchema = {
 // ResponseView.tsx's chatId+planKey dedup key doesn't collapse two
 // unrelated plans in the same chat into one item, or fork one evolving
 // plan into duplicates every time it's amended.
-const PLAN_SCHEMA: ResponseSchema = {
+//
+// Self Care uses a structurally identical schema (see
+// SELF_CARE_PLAN_SCHEMA below) rather than this same object — the two
+// tools' requirements may well diverge later, and a shared schema object
+// would make that awkward. Only the frontend's generic table-as-bulleted-
+// list renderer (PlanRows) is actually shared between them, since that's
+// just rendering logic keyed off a JSON shape, not a contract either tool
+// needs to keep in lockstep.
+const DIET_PLAN_SCHEMA: ResponseSchema = {
   name: 'diet_plan',
   schema: {
     type: 'object',
@@ -459,6 +532,49 @@ const PLAN_SCHEMA: ResponseSchema = {
       },
     },
     required: ['kind', 'reply', 'planKey', 'planTitle', 'columns', 'rows'],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to DIET_PLAN_SCHEMA — kept as its own object
+// rather than reused, see the comment there.
+const SELF_CARE_PLAN_SCHEMA: ResponseSchema = {
+  name: 'self_care_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      columns: { type: 'array', items: { type: 'string' } },
+      rows: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    required: ['kind', 'reply', 'planKey', 'planTitle', 'columns', 'rows'],
+    additionalProperties: false,
+  },
+};
+
+// Same 'kind' escape hatch, same dedup mechanism as RECIPE_SCHEMA/
+// PLAN_SCHEMA (problemKey is the tech-support counterpart to dishKey/
+// planKey) — but no ingredients-style second list, since a troubleshooting
+// guide is just one ordered set of steps, refined in place as the user
+// reports back what they tried and what happened.
+const TECH_GUIDE_SCHEMA: ResponseSchema = {
+  name: 'tech_guide',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['guide', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      problemKey: { type: ['string', 'null'] },
+      problemTitle: { type: ['string', 'null'] },
+      steps: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['kind', 'reply', 'problemKey', 'problemTitle', 'steps'],
     additionalProperties: false,
   },
 };
@@ -587,21 +703,67 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'planKey is a short, stable, lowercase-hyphenated id for the CURRENT plan (e.g. "weight-loss-week", "macro-targets") — reuse the exact same one on every reply that amends this same plan, only picking a new one if they ask for a genuinely different plan instead.',
       "You're not a substitute for a doctor or registered dietitian — for a medical condition, allergy, or serious health concern, say so plainly and suggest they check with a professional, without being alarmist about it.",
     ].join(' '),
-    responseSchema: PLAN_SCHEMA,
+    responseSchema: DIET_PLAN_SCHEMA,
+  },
+  'self-care': {
+    model: 'gpt-4o-mini',
+    task: [
+      "You are a warm, understanding self-care companion getting to know this person, how they're feeling, and what's actually going on for them — not just handing out generic wellness tips.",
+      'First decide `kind`: use "plan" once you have enough to put together a concrete routine or set of ideas for them. Use "chat" for everything else — getting to know them, checking in on how they\'re feeling, small talk, follow-up questions — leaving the plan fields null and writing your reply in `reply` instead.',
+      'For "plan": leave `reply` null. Shape it however best fits what they actually need — a daily or weekly routine, a simple list of ideas to try, anything — you decide the columns and rows.',
+      'planKey is a short, stable, lowercase-hyphenated id for the CURRENT plan (e.g. "evening-wind-down", "stress-relief-ideas") — reuse the exact same one on every reply that amends this same plan, only picking a new one if they ask for something genuinely different instead.',
+      "You're not a substitute for a doctor, pharmacist, therapist, or beautician — for a specific skin concern, health issue, or how they're feeling if it seems serious, say so plainly and suggest they get advice from a relevant professional, without being alarmist about it.",
+    ].join(' '),
+    responseSchema: SELF_CARE_PLAN_SCHEMA,
+  },
+  tech: {
+    model: 'gpt-4o-mini',
+    task: [
+      'You help the user troubleshoot and fix a tech problem, working through it step by step as they try things and report back what happened.',
+      'First decide `kind`: use "guide" once you have enough to suggest concrete steps to try. Use "chat" for greetings, small talk, or when you need more detail first (what device, what error, what they\'ve already tried) — leaving the guide fields null and writing your reply in `reply` instead.',
+      'For "guide": leave `reply` null. Treat every reply as the complete, current set of steps for THIS problem, taking into account everything they\'ve told you so far — including what they\'ve already tried and what happened when they did. If a step turned out not to work, or they hit an edge case (a different error, something about their specific setup), revise the guide around that rather than blindly repeating the old step or only describing the new detail in isolation.',
+      'A single chat can end up covering more than one unrelated problem (e.g. Wi-Fi trouble, then separately a printer issue) — problemKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated problemKey the first time a problem comes up (e.g. "wifi-not-connecting"), and reuse that EXACT SAME problemKey on every later reply about that same problem, however much the steps change. Only assign a new problemKey when they bring up a genuinely different, unrelated problem.',
+      'problemTitle should describe the problem plainly (e.g. "Wi-Fi Won\'t Connect on Windows Laptop") — update it if the diagnosis becomes clearer as you go.',
+      'steps is the ordered list of things to try, clear enough to follow without confusion — the CURRENT best steps given everything you know now, not a running log of everything ever suggested.',
+      "If you're not confident about a fix, say so honestly rather than inventing a plausible-sounding one, and suggest what information would help narrow it down.",
+    ].join(' '),
+    responseSchema: TECH_GUIDE_SCHEMA,
+  },
+  politics: {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: buildTopicExplainerTask(
+      'politics, government, or law',
+      'In sectionBody, wrap important law, act, or policy names in **double asterisks** to bold them (e.g. **Human Rights Act 1998**). Be selective: bold the specific laws or policies that matter most to this point, not every legal term mentioned in passing.',
+      "You are not a lawyer and this is not legal advice — never help someone find a loophole, workaround, or way to get around or exploit a law; if asked to, decline plainly and explain why, without being preachy about it. Where it's genuinely relevant, mention when a law or policy was introduced and one true, specific, interesting fact about it (e.g. a notable court case that tested it, or whether it's still actively enforced or has fallen out of use) — but only state a specific date, case, or fact if you're actually confident it's accurate; speak in general terms or leave it out rather than inventing a specific-sounding detail if you're not sure. On genuinely contested political topics, lay out the different perspectives and arguments fairly rather than taking a side or pushing a particular viewpoint. If a question depends on which country's law or system applies and you don't know (no country context given below, or it's a topic outside their country), ask which country they mean via `kind: \"chat\"` rather than silently assuming one.",
+    ),
+    responseSchema: POLITICS_SCHEMA,
   },
 };
 
 // null means "not wired up yet" — OpenAiService falls back to a canned
 // placeholder rather than making a real call for any slug not listed in
 // TOOL_DEFINITIONS.
-export function getToolConfig(slug: string): ToolConfig | null {
+export function getToolConfig(
+  slug: string,
+  userCountry?: string | null,
+): ToolConfig | null {
   const definition = TOOL_DEFINITIONS[slug];
   if (!definition) return null;
 
   const scopeGuard = buildScopeGuard(slug);
+  const residencyContext =
+    definition.usesResidencyContext && userCountry
+      ? buildResidencyContext(userCountry)
+      : '';
   return {
     model: definition.model,
-    systemPrompt: [definition.tone ?? DEFAULT_TONE, scopeGuard, definition.task]
+    systemPrompt: [
+      definition.tone ?? DEFAULT_TONE,
+      scopeGuard,
+      residencyContext,
+      definition.task,
+    ]
       .filter(Boolean)
       .join('\n\n'),
     responseSchema: definition.responseSchema,

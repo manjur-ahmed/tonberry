@@ -146,7 +146,7 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
   },
   {
     slug: 'politics',
-    name: 'Politics',
+    name: 'Politics & Law',
     description: 'Understand a political topic or policy.',
   },
   { slug: 'news', name: 'News', description: 'Get a summary of a news topic.' },

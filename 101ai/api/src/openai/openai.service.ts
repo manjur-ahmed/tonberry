@@ -36,6 +36,12 @@ export interface GenerateReplyParams {
   userId: string;
   chatId: string;
   messageId: string;
+  // The user's own ISO 3166-1 alpha-2 country (User.country) — only
+  // actually used by a tool that opts in via usesResidencyContext (see
+  // tool-config.ts), e.g. Politics & Law needing to know which country's
+  // law a jurisdiction-dependent question means. Null/undefined for a user
+  // who hasn't set it yet; getToolConfig just omits the context in that case.
+  userCountry?: string | null;
 }
 
 @Injectable()
@@ -55,7 +61,7 @@ export class OpenAiService {
   // otherwise. A slug with no entry gets the canned placeholder (and no
   // usage log — there's nothing to log).
   async generateReply(params: GenerateReplyParams): Promise<string> {
-    const config = getToolConfig(params.toolSlug);
+    const config = getToolConfig(params.toolSlug, params.userCountry);
     if (!config) return PLACEHOLDER_REPLY;
 
     try {
