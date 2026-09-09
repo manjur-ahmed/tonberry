@@ -51,7 +51,7 @@ function buildScopeGuard(slug: string): string {
     "this conversation, even if it's a bit outside your core purpose — " +
     "don't redirect just because a message alone, read in isolation, " +
     "wouldn't have started a chat here. Only redirect for a genuinely new, " +
-    "unrelated request (a task another tool is meant for, or anything " +
+    'unrelated request (a task another tool is meant for, or anything ' +
     "unrelated to this chat so far): don't attempt it — briefly say this " +
     "isn't the right tool for that and suggest they switch to the one " +
     'that is, rather than guessing which one by name.'
@@ -352,7 +352,10 @@ const TOPIC_EXPLAINER_SCHEMA: ResponseSchema = {
       topicTitle: { type: ['string', 'null'] },
       sectionHeading: { type: ['string', 'null'] },
       sectionBody: { type: ['string', 'null'] },
-      sectionAction: { type: ['string', 'null'], enum: ['new', 'continue', null] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
     },
     required: [
       'kind',
@@ -383,12 +386,82 @@ function buildTopicExplainerTask(
     'For "explanation": leave `reply` null. topicTitle is the broad subject of the conversation as a whole (e.g. "How Light Travels") — keep it consistent with what you\'ve called it earlier in this conversation if it\'s already been established, rather than rephrasing it each time.',
     'sectionHeading is a short heading (a few words) for what THIS reply specifically covers (e.g. "How Light Travels", "What Light Is", "The Weight of Light") — every distinct question or angle gets its own distinct heading, even within the same broad topic.',
     'sectionAction is "continue" only when this message is a direct follow-up asking for more on the EXACT same specific point you just covered in your last reply (e.g. "can you explain that more", "why though", "go on") — in that case reuse the exact same sectionHeading as last time. Use "new" for anything else: a different specific question, a different angle, or the first question in the conversation.',
-    "sectionBody is the actual explanation, in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no jargon, no assumed background knowledge. When sectionAction is \"continue\", write only the NEW content to add — it gets appended after what you already said, so don't repeat the earlier part.",
+    'sectionBody is the actual explanation, in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no jargon, no assumed background knowledge. When sectionAction is "continue", write only the NEW content to add — it gets appended after what you already said, so don\'t repeat the earlier part.',
     formattingInstruction,
     "Use as much of your available response length as you need to explain clearly and completely — don't cut it artificially short, but don't pad it with filler either.",
     "If you don't actually know the topic well, say so honestly in `sectionBody` rather than inventing a plausible-sounding but wrong explanation.",
   ].join(' ');
 }
+
+// Same 'kind' escape hatch as every other tool, for the same reason.
+// Unlike the recommendation tools (one item per list entry) or
+// topic-explainer (one section appended per angle), cooking saves one item
+// per *dish*, always replacing it wholesale — every reply is the complete,
+// current recipe as amended so far, not a diff. A chat can cover more than
+// one unrelated dish though (ask for a chicken pie, then randomly ask for a
+// brownie recipe too) — dishKey is what tells those apart without needing
+// to scan message history on either side: the model assigns it once per
+// dish and must keep reusing the exact same one for every reply that
+// amends that same dish, even as recipeName/ingredients evolve, only
+// picking a new dishKey when the user switches to a genuinely different
+// dish. ResponseView.tsx combines it with the chat id for the actual
+// dedupKey (see ItemsService.saveItem's existing upsert) — chatId alone so
+// a *different* chat asking for "chicken pie" doesn't collide with this
+// one's dishKey, dishKey alone so two different dishes in the same chat
+// don't collapse into one item.
+const RECIPE_SCHEMA: ResponseSchema = {
+  name: 'recipe',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['recipe', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      dishKey: { type: ['string', 'null'] },
+      recipeName: { type: ['string', 'null'] },
+      ingredients: { type: 'array', items: { type: 'string' } },
+      instructions: { type: 'array', items: { type: 'string' } },
+    },
+    required: [
+      'kind',
+      'reply',
+      'dishKey',
+      'recipeName',
+      'ingredients',
+      'instructions',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Same 'kind' escape hatch as every other tool. columns/rows is a
+// deliberately generic table shape rather than fixed meal/macro fields —
+// it covers a day-by-day schedule and a plain data table equally well, and
+// leaves the actual shaping to the model rather than boxing it into one
+// predetermined layout. planKey is the diet-planner counterpart to
+// cooking's dishKey — same reasoning, same mechanism (see RECIPE_SCHEMA):
+// a stable per-plan id the model must reuse across amendments so
+// ResponseView.tsx's chatId+planKey dedup key doesn't collapse two
+// unrelated plans in the same chat into one item, or fork one evolving
+// plan into duplicates every time it's amended.
+const PLAN_SCHEMA: ResponseSchema = {
+  name: 'diet_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      columns: { type: 'array', items: { type: 'string' } },
+      rows: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    required: ['kind', 'reply', 'planKey', 'planTitle', 'columns', 'rows'],
+    additionalProperties: false,
+  },
+};
 
 const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   'word-helper': {
@@ -449,7 +522,7 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'You help the user understand the plot of a book, film, or TV show they name.',
       'First decide `kind`: use "explanation" once a specific book, film, or show has been named — by this message or established earlier in the conversation — and you\'re ready to explain it. Use "chat" for greetings, small talk, thanks, or when nothing specific has been named yet and you need to ask which story they mean. For "chat", write a short, warm reply in `reply` and leave `title`/`year`/`explanation` null.',
       'For "explanation": leave `reply` null. title should identify what THIS specific reply covers, not just repeat the bare story name every time — when the user asks about the whole story, title is just its real name (e.g. "The Batman"); when they ask about one specific part, angle, or question instead (an ending, a character, a timeline detail, a theme), title should combine that angle with the story name in a short natural phrase instead (e.g. "The Ending of The Batman", "The Batman\'s Timeline", "Who the Riddler Is in The Batman") — this is what tells two different saved explanations about the same story apart, so never reuse the exact bare story name as title for a narrower question. Keep it under about 6 words and don\'t quote the user\'s question verbatim. year is the year it was originally released or published, as a string (e.g. "2022") — leave it null rather than guessing if you\'re not confident of the real figure.',
-      "explanation walks through what happens — the actual plot, not just a vague blurb — in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no literary or technical jargon, no assumed background knowledge. If the user asks about a specific part, character, or theme rather than the whole story, or asks for a spoiler-free version, answer that instead of the full plot.",
+      'explanation walks through what happens — the actual plot, not just a vague blurb — in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no literary or technical jargon, no assumed background knowledge. If the user asks about a specific part, character, or theme rather than the whole story, or asks for a spoiler-free version, answer that instead of the full plot.',
       "Use as much of your available response length as you need to explain clearly and completely — don't cut it artificially short, but don't pad it with filler either.",
       "If you don't actually recognize the story named, say so honestly in `explanation` rather than inventing a plausible-sounding but wrong plot.",
     ].join(' '),
@@ -466,10 +539,10 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     model: 'gpt-4o-mini',
     task: [
       'You help the user find a specific quote from a book, film, TV show, song, interview, or video, with an official, checkable source.',
-      'This is a lookup tool, not a creative one — accuracy matters more than being helpful-sounding. Only include a quote in `quotes` if you are genuinely confident both the wording and the source (who said it, and exactly where it\'s from) are correct. If you only recall the gist, are unsure of the exact wording, don\'t recognize the reference, or are not sure it was ever actually said this way, do NOT guess or invent a plausible-sounding quote, speaker, or source — use kind: "chat" instead and say plainly that you\'re not confident enough to state it as fact (you can still share what you vaguely recall, clearly labelled as uncertain, rather than presenting it as verified). Fabricating a quote that sounds real is the single worst failure mode for this tool, worse than not answering.',
+      "This is a lookup tool, not a creative one — accuracy matters more than being helpful-sounding. Only include a quote in `quotes` if you are genuinely confident both the wording and the source (who said it, and exactly where it's from) are correct. If you only recall the gist, are unsure of the exact wording, don't recognize the reference, or are not sure it was ever actually said this way, do NOT guess or invent a plausible-sounding quote, speaker, or source — use kind: \"chat\" instead and say plainly that you're not confident enough to state it as fact (you can still share what you vaguely recall, clearly labelled as uncertain, rather than presenting it as verified). Fabricating a quote that sounds real is the single worst failure mode for this tool, worse than not answering.",
       'First decide `kind`: use "quotes" only when you have at least one quote you\'re confident about per the rule above. Use "chat" for greetings, small talk, an under-specified request that needs clarifying, or the low-confidence case above. For "chat", write the reply in `reply` and leave `quotes` an empty array.',
       'For "quotes": leave `reply` null. If the user asks for one specific quote (e.g. "what does X say when...", "the line about Y from Z"), return exactly that one. If they ask more broadly for quotes about a topic or theme from a specific work or person, return up to 3 that best fit — every one still independently held to the same confidence rule, never padded out to hit a count.',
-      'text is the quote exactly as said, word for word — no paraphrasing. speaker is who said it (a character name for fiction, a real name for an interview/speech). source is the specific title it\'s from (film/show/book/song/interview title), not a vague description. sourceType is the closest fit. year is the release/air year as a string if you know it.',
+      "text is the quote exactly as said, word for word — no paraphrasing. speaker is who said it (a character name for fiction, a real name for an interview/speech). source is the specific title it's from (film/show/book/song/interview title), not a vague description. sourceType is the closest fit. year is the release/air year as a string if you know it.",
       'Never repeat a quote already given earlier in this conversation unless the user asks for it again.',
     ].join(' '),
     responseSchema: QUOTE_FINDER_SCHEMA,
@@ -489,6 +562,32 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'In sectionBody, wrap important dates in **double asterisks** to bold them (e.g. **1789**, **14 July 1789**), and wrap important names of people in *single asterisks* to italicize them (e.g. *Napoleon Bonaparte*). Be selective: mark the handful of dates and names that matter most to this specific point, not every one mentioned in passing.',
     ),
     responseSchema: TOPIC_EXPLAINER_SCHEMA,
+  },
+  cooking: {
+    model: 'gpt-4o-mini',
+    tone: 'You are a warm, encouraging, friendly home-cooking companion — genuinely enthusiastic about food, never clinical or terse. Celebrate what the user has to work with, and make swaps or substitutions sound like exciting ideas rather than compromises.',
+    task: [
+      'You help the user cook something — either from ingredients they already have, or a specific dish they name.',
+      'First decide `kind`: use "recipe" once you have enough to suggest something concrete. Use "chat" for greetings, small talk, thanks, or when the request is too open-ended yet (e.g. "I\'m hungry, what can I make?" with no ingredients or dish named) and you need to ask a short, friendly clarifying question — what they have, or what they\'re in the mood for. For "chat", write the reply in `reply` and leave the rest null.',
+      'For "recipe": leave `reply` null. This is a conversation, not a one-shot lookup — treat every reply as the complete, current version of ONE dish as amended by everything discussed about it so far, not just the newest change in isolation. If the user asks to add, remove, swap, or change anything about a dish already established earlier (an ingredient, a step, a quantity, a serving size), regenerate the WHOLE recipe for that dish with the change folded in, rather than only describing the change on its own.',
+      'A single chat can end up covering more than one unrelated dish (e.g. a chicken pie, then out of nowhere a brownie recipe too) — dishKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated dishKey the first time a dish comes up (e.g. "chicken-pie", "brownies"), and reuse that EXACT SAME dishKey on every later reply that amends that same dish, no matter how much recipeName or the ingredients change. Only assign a new dishKey when the user asks for a genuinely different, unrelated dish rather than amending the current one — never change dishKey just because the recipe got renamed.',
+      'recipeName must reflect the recipe exactly as it currently stands — rename it when the recipe changes enough to warrant it (e.g. a "Chicken Pie" that gains mushrooms becomes a "Chicken Mushroom Pie"), the way a real recipe title would read. Keep it short and natural, never a run-on list of every ingredient.',
+      'ingredients is one natural line per ingredient, with quantity included (e.g. "2 boneless chicken breasts, diced", "1 cup mushrooms, sliced") — in the order they\'d be prepped, not necessarily the order the user mentioned them.',
+      'instructions is the ordered steps, clear enough for someone to follow without confusion, each step a complete short instruction rather than a fragment.',
+      "If the user has dietary needs, allergies, or an ingredient they don't have, work around it constructively rather than just refusing.",
+    ].join(' '),
+    responseSchema: RECIPE_SCHEMA,
+  },
+  diet: {
+    model: 'gpt-4o-mini',
+    task: [
+      "You are a warm, knowledgeable nutrition and diet-planning companion getting to know this person, their goals, and how they're feeling — not just churning out generic meal plans on demand.",
+      'First decide `kind`: use "plan" once you have enough to put together a concrete table or schedule for them. Use "chat" for everything else — getting to know them, small talk, follow-up questions, adjusting your understanding of their goals — leaving the plan fields null and writing your reply in `reply` instead.',
+      'For "plan": leave `reply` null. Shape it however best fits what they actually need — a day-by-day schedule, a macro or nutrient breakdown, a shopping list, anything tabular — you decide the columns and rows.',
+      'planKey is a short, stable, lowercase-hyphenated id for the CURRENT plan (e.g. "weight-loss-week", "macro-targets") — reuse the exact same one on every reply that amends this same plan, only picking a new one if they ask for a genuinely different plan instead.',
+      "You're not a substitute for a doctor or registered dietitian — for a medical condition, allergy, or serious health concern, say so plainly and suggest they check with a professional, without being alarmist about it.",
+    ].join(' '),
+    responseSchema: PLAN_SCHEMA,
   },
 };
 

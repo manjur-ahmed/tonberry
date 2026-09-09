@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowUp, ChevronRight, Minimize2, MoreVertical, Plus, Sparkles, Star } from 'lucide-react'
+import { AlertTriangle, ArrowUp, ChevronRight, Minimize2, MoreVertical, Plus, Sparkles, Star } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import { isToolSaved, toggleSavedTool } from '../lib/savedTools'
 import { getChatsForTool } from '../lib/chats'
@@ -9,6 +9,7 @@ import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { getItemView } from '../tools/itemViews'
 import ItemDetailModal from '../components/ItemDetailModal'
 import Skeleton from '../components/Skeleton'
+import ToolNotice from '../components/ToolNotice'
 import { useAuth } from '../hooks/useAuth'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
@@ -25,6 +26,8 @@ const DENSE_ITEM_TOOLS = new Set([
   'story-explainer',
   'science-explainer',
   'history-helper',
+  'cooking',
+  'diet',
 ])
 
 function ToolDashboard() {
@@ -266,6 +269,12 @@ function ToolDashboard() {
             placeholder={`How can ${tool?.name ?? 'this tool'} help you today?`}
             className="flex-1 resize-none px-6 py-2 text-lg text-slate-900 placeholder:text-slate-400 focus:outline-none"
           />
+
+          {tool?.warning && (
+            <div className="px-4">
+              <ToolNotice icon={AlertTriangle} message={tool.warning} />
+            </div>
+          )}
 
           <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
             <button

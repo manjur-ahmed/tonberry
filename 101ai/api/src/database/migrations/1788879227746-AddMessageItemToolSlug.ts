@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddMessageItemToolSlug1788879227746
-  implements MigrationInterface
-{
+export class AddMessageItemToolSlug1788879227746 implements MigrationInterface {
   name = 'AddMessageItemToolSlug1788879227746';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

@@ -7,6 +7,8 @@ import MusicRecommendationsItemView from './music-recommendations/ItemView'
 import QuoteFinderItemView from './quote-finder/ItemView'
 import StoryExplainerItemView from './story-explainer/ItemView'
 import TopicExplainerItemView from './topic-explainer/ItemView'
+import CookingItemView from './cooking/ItemView'
+import DietItemView from './diet/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -24,6 +26,8 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'story-explainer': StoryExplainerItemView,
   'science-explainer': TopicExplainerItemView,
   'history-helper': TopicExplainerItemView,
+  'cooking': CookingItemView,
+  'diet': DietItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

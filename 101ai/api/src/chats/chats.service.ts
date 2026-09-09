@@ -54,7 +54,7 @@ const START_CHAT_ASSISTANT_REPLY = 'Sure, how can I help?';
 const ITEM_CONTEXT_PREAMBLE =
   'For reference, here is an item the user previously saved and is now ' +
   'viewing (raw data below). Treat it as context already established in ' +
-  "this conversation, the same as anything discussed earlier — the " +
+  'this conversation, the same as anything discussed earlier — the ' +
   "user's next message may continue about it, or may ask for something " +
   'new or different.';
 

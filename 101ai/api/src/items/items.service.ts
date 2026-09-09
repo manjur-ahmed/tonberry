@@ -104,7 +104,9 @@ export class ItemsService {
       await this.assertUnderItemLimit(userId, toolSlug, plan);
       const data: TopicItemData = {
         title: params.topicTitle,
-        sections: [{ heading: params.sectionHeading, body: params.sectionBody }],
+        sections: [
+          { heading: params.sectionHeading, body: params.sectionBody },
+        ],
       };
       const item = this.itemsRepository.create({
         userId,
@@ -122,7 +124,10 @@ export class ItemsService {
     if (params.sectionAction === 'continue' && lastSection) {
       lastSection.body = `${lastSection.body}\n\n${params.sectionBody}`;
     } else {
-      data.sections.push({ heading: params.sectionHeading, body: params.sectionBody });
+      data.sections.push({
+        heading: params.sectionHeading,
+        body: params.sectionBody,
+      });
     }
     existing.data = data;
     return this.itemsRepository.save(existing);

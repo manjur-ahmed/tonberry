@@ -7,8 +7,8 @@ export const categories = [
   'Entertainment & Media',
   'Politics & Current Affairs',
   'Travel & Leisure',
-  'Business',
   'Personal Finance',
+  'Business',
 ] as const
 
 export type ToolCategory = (typeof categories)[number]
@@ -19,6 +19,17 @@ export interface Tool {
   description: string
   icon: string
   category: ToolCategory
+  // Liability/safety notice shown above the send button on ToolDashboard's
+  // new-chat compose sheet (see ToolNotice) — e.g. "this isn't medical
+  // advice" for a diet or cooking tool. Optional and tool-specific so any
+  // future tool that needs one (legal, financial, safety...) can just set
+  // this, without a bespoke mechanism per tool.
+  warning?: string
+  // Shows a "this works better with memory" nudge above Chat.tsx's reply
+  // box while memory's off (see the memory promo notice there) — for the
+  // handful of tools where an ongoing back-and-forth actually benefits from
+  // it, rather than every tool.
+  promoteMemory?: boolean
 }
 
 // Placeholder catalog — swap these for the real tools once decided.
@@ -177,13 +188,6 @@ export const tools: Tool[] = [
     category: 'Health & Wellbeing',
   },
   {
-    slug: 'diet',
-    name: 'Diet',
-    description: 'Get diet and nutrition suggestions.',
-    icon: '🥗',
-    category: 'Health & Wellbeing',
-  },
-  {
     slug: 'self-care',
     name: 'Self Care',
     description: 'Get self-care ideas and routines.',
@@ -207,25 +211,22 @@ export const tools: Tool[] = [
 
   // Food & Cooking
   {
-    slug: 'ingredients',
-    name: 'Ingredients',
-    description: 'Find ingredient swaps and substitutes.',
-    icon: '🧂',
+    slug: 'diet',
+    name: 'Diet Planner',
+    description: 'Get diet and nutrition suggestions.',
+    icon: '🥗',
     category: 'Food & Cooking',
+    warning: "This isn't medical or dietetic advice — for medical conditions, allergies, or major diet changes, check with a doctor or registered dietitian first.",
+    promoteMemory: true,
   },
   {
-    slug: 'recipes',
-    name: 'Recipes',
-    description: 'Get a recipe from what you have.',
-    icon: '🍲',
-    category: 'Food & Cooking',
-  },
-  {
-    slug: 'cooking-instructions',
-    name: 'Cooking Instructions',
-    description: 'Get step-by-step cooking instructions.',
+    slug: 'cooking',
+    name: 'Cooking Guide',
+    description: 'Get food recipes, ideas and cooking instructions',
     icon: '👨‍🍳',
     category: 'Food & Cooking',
+    warning: 'Always check for allergens and follow safe food-handling and cooking temperatures — this tool can get things wrong.',
+    promoteMemory: true,
   },
 
   // Travel & Leisure

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Info, Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, Brain, Info, Plus } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import { useAuth } from '../hooks/useAuth'
 import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage } from '../lib/chats'
@@ -12,6 +12,7 @@ import RedirectSuggestion from '../components/RedirectSuggestion'
 import MessageActions from '../components/MessageActions'
 import GeneratingResponse from '../components/GeneratingResponse'
 import ItemLimitBanner from '../components/ItemLimitBanner'
+import ToolNotice from '../components/ToolNotice'
 import { getResponseView, type SaveStatus } from '../tools/responseViews'
 import { getItemView } from '../tools/itemViews'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
@@ -276,6 +277,15 @@ function Chat() {
 
   const ResponseView = getResponseView(tool.slug)
 
+  // Covers both ways a chat can start without the user actually typing
+  // anything themselves: the very first message of a normal new chat is
+  // sent automatically (see the useLayoutEffect above), and an
+  // item-started chat (see ItemDetailModal) seeds a canned "I want to talk
+  // about this" as the first user message — so in both cases the user's
+  // own first written reply is really their *second* user-role message.
+  const userMessageCount = chat.messages.filter((message) => message.role === 'user').length
+  const showMemoryPromo = tool.promoteMemory && !hasMemory && userMessageCount < 2
+
   return (
     // Extra bottom padding — the compose bar below is now `fixed`, so it no
     // longer reserves its own space in flow; this keeps the last message
@@ -373,6 +383,23 @@ function Chat() {
           >
             <ArrowDown className="h-4 w-4" strokeWidth={2} />
           </button>
+        )}
+
+        {/* Hidden once the keyboard's up (nothing left to nudge them about
+            once they're already typing) and while the redirect suggestion
+            — which has no reply box of its own — is showing instead. */}
+        {showMemoryPromo && keyboardInset === 0 && !redirectSuggestion && (
+          <ToolNotice
+            icon={Brain}
+            message={
+              <>
+                Psst&hellip; this tool works better with memory!{' '}
+                <Link to="/settings" className="underline">
+                  Enable memory
+                </Link>
+              </>
+            }
+          />
         )}
 
         {redirectSuggestion ? (

@@ -7,6 +7,8 @@ import MusicRecommendationsResponse from './music-recommendations/ResponseView'
 import StoryExplainerResponse from './story-explainer/ResponseView'
 import QuoteFinderResponse from './quote-finder/ResponseView'
 import TopicExplainerResponse from './topic-explainer/ResponseView'
+import CookingResponse from './cooking/ResponseView'
+import DietResponse from './diet/ResponseView'
 
 export type SaveStatus = 'saving' | 'saved' | 'error' | 'limit-reached'
 
@@ -40,6 +42,8 @@ const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'quote-finder': QuoteFinderResponse,
   'science-explainer': TopicExplainerResponse,
   'history-helper': TopicExplainerResponse,
+  'cooking': CookingResponse,
+  'diet': DietResponse,
 }
 
 export function getResponseView(slug: string): ComponentType<ResponseViewProps> {

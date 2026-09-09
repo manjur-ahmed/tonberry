@@ -69,7 +69,8 @@ export class OpenAiService {
           })),
           { role: 'user', content: params.message },
         ],
-        max_completion_tokens: config.maxCompletionTokens ?? MAX_COMPLETION_TOKENS,
+        max_completion_tokens:
+          config.maxCompletionTokens ?? MAX_COMPLETION_TOKENS,
         response_format: config.responseSchema
           ? {
               type: 'json_schema',

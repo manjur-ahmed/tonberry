@@ -111,7 +111,7 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
   },
   {
     slug: 'diet',
-    name: 'Diet',
+    name: 'Diet Planner',
     description: 'Get diet and nutrition suggestions.',
   },
   {
@@ -130,19 +130,9 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
     description: 'Plan a gym or workout routine.',
   },
   {
-    slug: 'ingredients',
-    name: 'Ingredients',
-    description: 'Find ingredient swaps and substitutes.',
-  },
-  {
-    slug: 'recipes',
-    name: 'Recipes',
-    description: 'Get a recipe from what you have.',
-  },
-  {
-    slug: 'cooking-instructions',
-    name: 'Cooking Instructions',
-    description: 'Get step-by-step cooking instructions.',
+    slug: 'cooking',
+    name: 'Cooking Guide',
+    description: 'Get food recipes, ideas and cooking instructions',
   },
   {
     slug: 'day-activity',
