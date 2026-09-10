@@ -69,7 +69,17 @@ function formatRow(columns: string[], row: string[]): FormattedRow {
 // cell is already unique gains nothing from grouping, so it stays flat.
 function groupRows(columns: string[], rows: string[][]): PlanGroup[] | null {
   if (columns.length < 3) return null
-  const firstColumnValues = rows.map((row) => row[0] ?? '')
+  // A blank leading cell is the model's way of saying "same day as the row
+  // above" (a common table convention), not an empty group of its own —
+  // forward-fill it before grouping so a run of blanks after one real day
+  // label doesn't collapse into a single group merging meals from every
+  // day together.
+  let lastLabel = ''
+  const firstColumnValues = rows.map((row) => {
+    const value = (row[0] ?? '').trim()
+    if (value) lastLabel = value
+    return value || lastLabel
+  })
   if (new Set(firstColumnValues).size === firstColumnValues.length) return null
 
   const groups: PlanGroup[] = []

@@ -33,10 +33,10 @@
   - [x] Music Recommendations
   - [x] Story Explainer
   - [x] Quote Finder
-  - [ ] Business Plan
-  - [ ] Business Research
+  - [x] Business Plan
+  - [x] Business Research
   - [ ] Ad Creator
-  - [ ] Salary Calculator
+  - [x] Salary Calculator
   - [ ] Budget Planner
   - [ ] Career Planner
   - [ ] Shopping
@@ -46,7 +46,7 @@
   - [x] Diet
   - [x] Self Care
   - [ ] Steps Planner
-  - [ ] Gym Planner
+  - [x] Gym Planner
   - [x] Cooking
   - [ ] Day Activity
   - [ ] Holiday Planning
@@ -109,4 +109,4 @@
 
 ---
 
-**Progress: 16/96 tasks complete (17%)**
+**Progress: 20/96 tasks complete (21%)**

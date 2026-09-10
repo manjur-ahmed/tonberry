@@ -17,6 +17,10 @@ import CarItemView from './car/ItemView'
 import DiyItemView from './diy/ItemView'
 import PoliticsItemView from './politics/ItemView'
 import GeneralHealthItemView from './general-health/ItemView'
+import GymPlannerItemView from './gym-planner/ItemView'
+import BusinessPlanItemView from './business-plan/ItemView'
+import BusinessResearchItemView from './business-research/ItemView'
+import SalaryCalculatorItemView from './salary-calculator/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -43,6 +47,10 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'diy': DiyItemView,
   'politics': PoliticsItemView,
   'general-health': GeneralHealthItemView,
+  'gym-planner': GymPlannerItemView,
+  'business-plan': BusinessPlanItemView,
+  'business-research': BusinessResearchItemView,
+  'salary-calculator': SalaryCalculatorItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

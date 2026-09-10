@@ -17,6 +17,10 @@ import CarResponse from './car/ResponseView'
 import DiyResponse from './diy/ResponseView'
 import PoliticsResponse from './politics/ResponseView'
 import GeneralHealthResponse from './general-health/ResponseView'
+import GymPlannerResponse from './gym-planner/ResponseView'
+import BusinessPlanResponse from './business-plan/ResponseView'
+import BusinessResearchResponse from './business-research/ResponseView'
+import SalaryCalculatorResponse from './salary-calculator/ResponseView'
 
 export type SaveStatus = 'saving' | 'saved' | 'error' | 'limit-reached'
 
@@ -59,6 +63,10 @@ const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'diy': DiyResponse,
   'politics': PoliticsResponse,
   'general-health': GeneralHealthResponse,
+  'gym-planner': GymPlannerResponse,
+  'business-plan': BusinessPlanResponse,
+  'business-research': BusinessResearchResponse,
+  'salary-calculator': SalaryCalculatorResponse,
 }
 
 export function getResponseView(slug: string): ComponentType<ResponseViewProps> {

@@ -558,6 +558,73 @@ const SELF_CARE_PLAN_SCHEMA: ResponseSchema = {
   },
 };
 
+// Structurally identical to DIET_PLAN_SCHEMA — kept as its own object,
+// see the comment there.
+const GYM_PLAN_SCHEMA: ResponseSchema = {
+  name: 'gym_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      columns: { type: 'array', items: { type: 'string' } },
+      rows: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    required: ['kind', 'reply', 'planKey', 'planTitle', 'columns', 'rows'],
+    additionalProperties: false,
+  },
+};
+
+// Structurally close to DIET_PLAN_SCHEMA (kept as its own object, see the
+// comment there) plus one addition: workingOut. columns/rows ends up
+// holding a tax/deduction breakdown (Gross, Income Tax, National Insurance,
+// Pension, Take-Home, etc.) rather than a schedule, but the generic table
+// shape fits that just as well as a meal plan.
+//
+// workingOut exists because this tool's numbers are actual arithmetic, not
+// just picks from a list — including the reverse direction (given a target
+// take-home figure, solve for the gross salary that produces it), which
+// needs the model to compute a candidate, check it against the target, and
+// adjust rather than free-associate a plausible-looking round number. A
+// strict-schema reply has no room to "think" other than in its own fields,
+// so this field comes before columns/rows in property order specifically to
+// give the model space to work the sums through step by step first — it's
+// scratch space, not shown in the UI, and the final columns/rows must match
+// what it actually worked out here, not just gesture at it.
+const SALARY_CALCULATOR_SCHEMA: ResponseSchema = {
+  name: 'salary_calculation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      workingOut: { type: ['string', 'null'] },
+      columns: { type: 'array', items: { type: 'string' } },
+      rows: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'planKey',
+      'planTitle',
+      'workingOut',
+      'columns',
+      'rows',
+    ],
+    additionalProperties: false,
+  },
+};
+
 // Shared shape for every "diagnose, then work through ordered steps,
 // refining as the user reports back what happened" tool — Tech, Home, Car,
 // DIY. Same 'kind' escape hatch, same dedup mechanism as RECIPE_SCHEMA/
@@ -665,6 +732,78 @@ const GENERAL_HEALTH_SCHEMA: ResponseSchema = {
       'sectionBody',
       'sectionAction',
     ],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to TOPIC_EXPLAINER_SCHEMA/POLITICS_SCHEMA/
+// GENERAL_HEALTH_SCHEMA — kept as its own object, see the comment on
+// POLITICS_SCHEMA for why.
+const BUSINESS_RESEARCH_SCHEMA: ResponseSchema = {
+  name: 'business_research',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// A different shape from every other "amendable item" tool (RECIPE_SCHEMA/
+// DIET_PLAN_SCHEMA/TECH_GUIDE_SCHEMA's family): those are either one flat
+// list (ingredients/steps) or one generic table (columns/rows), but a
+// business plan is naturally a handful of distinct, headed parts (Overview,
+// Target Customers, Pricing, ...) whose number and content depend on how
+// far the idea's been developed — a table doesn't fit that, and
+// topic-explainer's per-question `sections` (accumulated one at a time, via
+// ItemsService.upsertSection) doesn't either, since this is ONE evolving
+// document amended as a whole, not a growing pile of separate Q&A angles.
+// So: planKey/planTitle for the same stable-id amend mechanism as
+// RECIPE_SCHEMA/DIET_PLAN_SCHEMA (dedupKey is chatId+planKey, saved via the
+// existing ItemsService.saveItem upsert — NOT upsertSection), but `sections`
+// holds the plan's headed parts, and — like TECH_GUIDE_SCHEMA's `steps` —
+// each reply supplies the COMPLETE current set, regenerated in place, not
+// one new section appended per reply.
+const BUSINESS_PLAN_SCHEMA: ResponseSchema = {
+  name: 'business_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      sections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            heading: { type: 'string' },
+            body: { type: 'string' },
+          },
+          required: ['heading', 'body'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['kind', 'reply', 'planKey', 'planTitle', 'sections'],
     additionalProperties: false,
   },
 };
@@ -830,6 +969,17 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     ].join(' '),
     responseSchema: SELF_CARE_PLAN_SCHEMA,
   },
+  'gym-planner': {
+    model: 'gpt-4o-mini',
+    task: [
+      'You are a warm, knowledgeable gym and fitness companion getting to know this person, their goals, experience level, and what equipment or time they have — not just churning out generic workout plans on demand.',
+      'First decide `kind`: use "plan" once you have enough to put together a concrete workout schedule or routine for them. Use "chat" for everything else — getting to know them, small talk, follow-up questions, adjusting your understanding of their goals — leaving the plan fields null and writing your reply in `reply` instead.',
+      'For "plan": leave `reply` null. Shape it however best fits what they actually need — a weekly training split, a single session\'s exercises with sets/reps/rest, a progression plan, anything tabular — you decide the columns and rows.',
+      'planKey is a short, stable, lowercase-hyphenated id for the CURRENT plan (e.g. "push-pull-legs", "5k-progression") — reuse the exact same one on every reply that amends this same plan, only picking a new one if they ask for a genuinely different plan instead. planTitle is always a short, human-readable name for it (e.g. "Push/Pull/Legs Split") — never leave it null when kind is "plan".',
+      "You're not a substitute for a personal trainer or doctor — for an injury, a medical condition, or anything that sounds unsafe to attempt, say so plainly and suggest they check with a professional, without being alarmist about it.",
+    ].join(' '),
+    responseSchema: GYM_PLAN_SCHEMA,
+  },
   tech: {
     model: 'gpt-4o-mini',
     task: buildStepGuideTask(
@@ -852,7 +1002,7 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     usesResidencyContext: true,
     task: buildStepGuideTask(
       'diagnose and fix a car problem',
-      'Some jobs are not safe to walk someone through doing themselves — anything involving brakes, steering, airbags, or fuel systems. For these, do NOT provide the actual hands-on repair steps, even with a caution added on top — use kind:"chat" instead, say plainly that this needs a qualified mechanic and why, and help with what\'s genuinely safe (e.g. what symptoms to describe to a mechanic, roughly what might be wrong, finding a good one). For everything else (routine maintenance, diagnosing non-safety-critical issues), help normally. Roadworthiness rules vary by country (e.g. the UK\'s MOT vs. other countries\' inspection regimes), so if the user\'s country is given below, answer with that in mind.',
+      "Some jobs are not safe to walk someone through doing themselves — anything involving brakes, steering, airbags, or fuel systems. For these, do NOT provide the actual hands-on repair steps, even with a caution added on top — use kind:\"chat\" instead, say plainly that this needs a qualified mechanic and why, and help with what's genuinely safe (e.g. what symptoms to describe to a mechanic, roughly what might be wrong, finding a good one). For everything else (routine maintenance, diagnosing non-safety-critical issues), help normally. Roadworthiness rules vary by country (e.g. the UK's MOT vs. other countries' inspection regimes), so if the user's country is given below, answer with that in mind.",
     ),
     responseSchema: CAR_GUIDE_SCHEMA,
   },
@@ -882,6 +1032,48 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       "You are not a lawyer and this is not legal advice — never help someone find a loophole, workaround, or way to get around or exploit a law; if asked to, decline plainly and explain why, without being preachy about it. Where it's genuinely relevant, mention when a law or policy was introduced and one true, specific, interesting fact about it (e.g. a notable court case that tested it, or whether it's still actively enforced or has fallen out of use) — but only state a specific date, case, or fact if you're actually confident it's accurate; speak in general terms or leave it out rather than inventing a specific-sounding detail if you're not sure. On genuinely contested political topics, lay out the different perspectives and arguments fairly rather than taking a side or pushing a particular viewpoint. If a question depends on which country's law or system applies and you don't know (no country context given below, or it's a topic outside their country), ask which country they mean via `kind: \"chat\"` rather than silently assuming one.",
     ),
     responseSchema: POLITICS_SCHEMA,
+  },
+  'business-plan': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: [
+      'You help the user draft and refine a business plan for a specific business idea, working through it over the conversation as they add detail or ask for changes.',
+      'First decide `kind`: use "plan" once you have a specific enough business idea to draft something concrete, EVEN A ROUGH FIRST DRAFT — this includes the very first time you draft one, not just later amendments. Use "chat" only for greetings, small talk, or when the idea is genuinely too vague yet (e.g. "I want to start a business") and you need to ask a short clarifying question before you can draft anything at all — for "chat", leave the plan fields null and write your actual clarifying question or reply in `reply` (never leave `reply` null too — "chat" always means something goes in `reply`). Wanting to invite more detail or refinement is NOT a reason to use "chat" once you\'ve actually got enough to draft something concrete — draft it as "plan" and invite refinement in a section like "Next Steps" instead, or briefly outside the plan fields; never write a full draft into `reply` as chat prose with the plan fields left empty.',
+      'For "plan": leave `reply` null. Treat every reply as the complete, current version of the plan as amended by everything discussed about it so far, not just the newest change in isolation — if they ask to add, remove, or change something, regenerate the WHOLE plan with the change folded in. A short, open follow-up on an already-drafted plan (e.g. "what do you think", "yeah", "sounds good", or no specific new instruction) is still "plan": just return the SAME plan unchanged (same planKey) rather than dropping to "chat" — never lose an already-drafted plan just because the next message didn\'t ask for a specific edit.',
+      'A single chat can end up covering more than one unrelated business idea — planKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated planKey the first time an idea comes up, and reuse that EXACT SAME planKey on every later reply that amends that same idea, however much the plan changes. Only assign a new planKey when they bring up a genuinely different, unrelated business idea.',
+      'planTitle is the business idea in a short natural phrase (e.g. "Mobile Coffee Cart", "Handmade Candle Store") — update it if the idea evolves enough to warrant it.',
+      "sections is the plan itself, broken into clearly headed parts — pick whichever are actually relevant to the idea and how far the conversation has developed it (e.g. Overview, Target Customers, Products or Services, Pricing, Marketing, Startup Costs, Next Steps) rather than a fixed checklist; a very early-stage idea might only need 2-3 sections, a well-developed one more. Each section's body should be concrete and specific to THIS business, not generic startup advice that could apply to anything.",
+      'This is a starting draft to build from, not professional advice — for anything with real legal, tax, or financial consequences (business registration, licensing, contracts, funding), say so plainly and suggest they confirm with a relevant professional before acting on it.',
+      "A business isn't automatically tied to where the user lives — a location-independent business (an online store, SaaS, freelance or remote service) shouldn't be assumed to operate under their home country's rules unless they say so. But a physical, local business (a shop, café, salon, and similar) that hasn't named a country should be assumed to operate in the user's own country if given below. Where it's genuinely relevant (registration, licensing, local market conditions), factor in the right country accordingly and name it explicitly rather than leaving it ambiguous.",
+    ].join(' '),
+    responseSchema: BUSINESS_PLAN_SCHEMA,
+  },
+  'business-research': {
+    model: 'gpt-4o-mini',
+    task: buildTopicExplainerTask(
+      'business, market, or industry research',
+      'In sectionBody, wrap important company names, product names, or key figures/statistics in **double asterisks** to bold them (e.g. **Stripe**, **$95B valuation**). Be selective: bold the handful of specifics that matter most, not every noun.',
+      "Ground your answer in what you actually know about real companies, markets, and trends — if you don't have reliable knowledge of specifics (an exact current market size, a private company's financials, very recent news), say so honestly rather than inventing plausible-sounding figures, and suggest what the user could verify with a live source instead.",
+    ),
+    responseSchema: BUSINESS_RESEARCH_SCHEMA,
+  },
+  'salary-calculator': {
+    // The only tool on the full model rather than gpt-4o-mini — this one's
+    // whole value is arithmetic accuracy (tax/NI bands, and solving
+    // backwards from a target take-home figure), and mini was landing
+    // hundreds of pounds off even with workingOut's step-by-step scratch
+    // space. Every other tool stays on mini.
+    model: 'gpt-4o',
+    usesResidencyContext: true,
+    task: [
+      'You help the user work out an accurate take-home pay estimate — either forwards from a gross salary, or backwards from a target take-home/net figure they want to hit.',
+      'First decide `kind`: use "plan" once you have a figure to calculate from — a gross salary, OR a target take-home/net amount to solve backwards from — and their country (from context below or stated). Use "chat" for greetings, small talk, or when you genuinely need more detail first (no figure given yet, or their country if none is known) — leaving the plan fields null and writing your reply in `reply` instead.',
+      'For "plan": leave `reply` null. workingOut is scratch space — use it every time, even for a simple forward calculation, to actually do the sums step by step before committing to final numbers: apply the real tax bands and NI/social-security thresholds for their country band by band. Each deduction is independent — calculate income tax and NI/social-security SEPARATELY, each straight off the gross salary and its own threshold (e.g. NI = its own rate × (gross − NI threshold)); never calculate one deduction as a percentage of the OTHER deduction\'s already-reduced taxable-income figure, which double-subtracts the allowance and understates it. When solving backwards from a target take-home figure, pick a candidate gross salary, compute what it actually nets down to, compare that against the target, and adjust and recompute — repeat until the take-home you land on is genuinely close (within roughly £50-100, tighter if easy). Never report a first guess without checking it actually gets there.',
+      'columns/rows is the final breakdown, matching what workingOut actually worked out — e.g. Gross Salary, Income Tax, National Insurance/Social Security, Pension Contributions, Take-Home Pay — using the real tax band/threshold names for their country. If they mention a pension contribution, student loan repayment, or other deduction, factor it in as its own row. When they gave you a target take-home figure, the Take-Home Pay row must actually be at or above that target, not just close to whatever gross figure you first thought of.',
+      'planKey is a short, stable, lowercase-hyphenated id for the CURRENT calculation (e.g. "salary-45k-gb", "take-home-60k-gb") — reuse the exact same one on every reply that amends this same calculation (a tweak to the same salary or inputs), only picking a new one for a genuinely different calculation. planTitle should describe what the calculation is actually about, not just restate the gross figure — reflect their real question (e.g. "Take-Home £60k (UK)" when solving backwards from a target, "£30k Salary Tax" or "£50k Tax Bracket" when that\'s specifically what they asked about, "£45,000 Salary (UK)" for a plain forward breakdown) — never leave it null when kind is "plan".',
+      "These are estimates based on standard tax rules, not a substitute for official guidance or a qualified accountant — say so if the figures could be materially affected by something you can't account for (irregular income, complex allowances, local or state taxes on top of national ones).",
+    ].join(' '),
+    responseSchema: SALARY_CALCULATOR_SCHEMA,
   },
 };
 

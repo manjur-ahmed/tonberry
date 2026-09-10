@@ -277,14 +277,25 @@ function Chat() {
 
   const ResponseView = getResponseView(tool.slug)
 
-  // Covers both ways a chat can start without the user actually typing
-  // anything themselves: the very first message of a normal new chat is
-  // sent automatically (see the useLayoutEffect above), and an
-  // item-started chat (see ItemDetailModal) seeds a canned "I want to talk
-  // about this" as the first user message — so in both cases the user's
-  // own first written reply is really their *second* user-role message.
-  const userMessageCount = chat.messages.filter((message) => message.role === 'user').length
-  const showMemoryPromo = tool.promoteMemory && !hasMemory && userMessageCount < 2
+  // Hides once the user's first REAL reply has come back — counting
+  // userMessageCount instead would hide it too early to ever be seen: the
+  // optimistic bubble in sendMutation's onMutate makes userMessageCount hit
+  // 1 the instant a message is sent, before its reply (and the "Generating
+  // response..." delay) even starts, so a `< 1` threshold on that would
+  // leave no visible window at all. Counting real assistant replies instead
+  // keeps it up through that whole generating phase and hides it right as
+  // the reply lands — no dead flash, and no lingering through a second
+  // exchange either.
+  //
+  // An item-started chat (see ChatsService.createChatFromItem) seeds 3
+  // fixed messages up front — the item card, a canned "I want to talk about
+  // this", and a canned "Sure, how can I help?" — none of which are a real
+  // exchange, so they're excluded via isItemCard (only ever true on that
+  // seeded first message) rather than counted as the user's first reply.
+  const startedFromItem = chat.messages[0]?.isItemCard === true
+  const realMessages = startedFromItem ? chat.messages.slice(3) : chat.messages
+  const realAssistantReplyCount = realMessages.filter((message) => message.role === 'assistant').length
+  const showMemoryPromo = tool.promoteMemory && !hasMemory && realAssistantReplyCount < 1
 
   return (
     // Extra bottom padding — the compose bar below is now `fixed`, so it no

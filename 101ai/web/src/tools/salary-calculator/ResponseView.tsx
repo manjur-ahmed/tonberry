@@ -6,24 +6,24 @@ import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import type { ResponseViewProps } from '../responseViews'
 
-interface SelfCarePlan {
-  // Stable per-plan id assigned by the model (see tool-config.ts) — same
-  // mechanism as diet's planKey/cooking's dishKey. Reused across every
-  // reply that amends the same plan, only changing when the user asks for
-  // a genuinely different one. Combined with chatId for the actual dedup
-  // key, so two different plans in one chat don't collapse into a single
-  // item.
+interface SalaryCalculation {
+  // Stable per-calculation id assigned by the model (see tool-config.ts) —
+  // same mechanism as diet's planKey. Reused across every reply that
+  // amends the same calculation (a tweak to the same salary/inputs), only
+  // changing when the user asks about a genuinely different scenario.
+  // Combined with chatId for the actual dedup key, so two different
+  // calculations in one chat don't collapse into a single item.
   planKey: string
   planTitle: string
   columns: string[]
   rows: string[][]
 }
 
-// `kind: 'chat'` replies (getting to know the user, checking in on how
-// they're feeling, small talk — see tool-config.ts) carry the same
-// envelope with the rest null and the reply text in `reply` instead; only
-// a 'plan' reply renders as a list or gets auto-saved.
-function isSelfCarePlan(value: unknown): value is SelfCarePlan {
+// `kind: 'chat'` replies (getting more detail, small talk — see
+// tool-config.ts) carry the same envelope with the rest null and the reply
+// text in `reply` instead; only a 'plan' reply renders as a table or gets
+// auto-saved.
+function isSalaryCalculation(value: unknown): value is SalaryCalculation {
   if (!value || typeof value !== 'object') return false
   const data = value as Record<string, unknown>
   if (data.kind === 'chat') return false
@@ -54,10 +54,8 @@ interface PlanGroup {
 // A table doesn't work well on a phone-width screen — squeezed columns or
 // constant horizontal scrolling either way. columns/rows is a generic
 // shape (see tool-config.ts) so this has to work for however many columns
-// the model picked: every column but the last becomes a bold label prefix
-// (e.g. "6:00 PM – Finish work" for a Time/Activity routine, just
-// "Journaling" for a plain single-column list of ideas), and the last
-// column is the value after it.
+// the model picked: every column but the last becomes a bold label prefix,
+// and the last column is the value after it (e.g. "Income Tax: £4,200").
 function formatRow(columns: string[], row: string[]): FormattedRow {
   if (columns.length <= 1) return { label: null, value: row[0] ?? '' }
   return { label: row.slice(0, -1).join(' – '), value: row[row.length - 1] ?? '' }
@@ -65,8 +63,8 @@ function formatRow(columns: string[], row: string[]): FormattedRow {
 
 // Sub-points, but only when they'd actually save repetition. Needs 3+
 // columns (nothing left to nest under 1-2) *and* the first column
-// repeating across rows — a list where every row's first cell is already
-// unique gains nothing from grouping, so it stays flat.
+// repeating across rows — a breakdown where every row's first cell is
+// already unique gains nothing from grouping, so it stays flat.
 function groupRows(columns: string[], rows: string[][]): PlanGroup[] | null {
   if (columns.length < 3) return null
   // A blank leading cell is the model's way of saying "same group as the
@@ -111,12 +109,12 @@ function PlanRow({ label, value }: FormattedRow) {
   )
 }
 
-function SelfCareResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
-  let data: SelfCarePlan | null = null
+function SalaryCalculatorResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+  let data: SalaryCalculation | null = null
   let chatReply: string | null = null
   try {
     const parsed = JSON.parse(content)
-    if (isSelfCarePlan(parsed)) data = parsed
+    if (isSalaryCalculation(parsed)) data = parsed
     else chatReply = getChatReply(parsed)
   } catch {
     data = null
@@ -126,8 +124,8 @@ function SelfCareResponse({ content, toolSlug, chatId, messageId, readOnly, onSa
     mutationFn: () => {
       if (!data) throw new Error('Nothing to save')
       // Dedup key is chatId + planKey, not the plan title — see cooking's
-      // ResponseView for why (a title can change as the plan gets amended,
-      // planKey is what stays stable across that).
+      // ResponseView for why (a title can change as the calculation gets
+      // amended, planKey is what stays stable across that).
       const request = saveItem(toolSlug, chatId, data.planTitle, data, `${chatId}:${data.planKey}`)
       // This resolves near-instantly today, but the spinner should still
       // read as a spinner rather than flash by — holds it open at least
@@ -144,11 +142,11 @@ function SelfCareResponse({ content, toolSlug, chatId, messageId, readOnly, onSa
     },
   })
 
-  // Every plan reply is worth saving, so it happens automatically rather
-  // than waiting on a user click. Runs once per message instance (component
-  // is freshly mounted per message.id) — the ref guard is only to dodge
-  // StrictMode's dev-mode double-invoke; the dedup key already makes a
-  // genuine double-call harmless either way.
+  // Every calculation reply is worth saving, so it happens automatically
+  // rather than waiting on a user click. Runs once per message instance
+  // (component is freshly mounted per message.id) — the ref guard is only
+  // to dodge StrictMode's dev-mode double-invoke; the dedup key already
+  // makes a genuine double-call harmless either way.
   //
   // Reopening a chat remounts this for every historical message too, so a
   // message whose item already saved successfully skips straight to
@@ -200,4 +198,4 @@ function SelfCareResponse({ content, toolSlug, chatId, messageId, readOnly, onSa
   )
 }
 
-export default SelfCareResponse
+export default SalaryCalculatorResponse

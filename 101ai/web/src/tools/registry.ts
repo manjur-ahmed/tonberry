@@ -117,6 +117,7 @@ export const tools: Tool[] = [
     description: 'Draft a simple business plan.',
     icon: '📈',
     category: 'Business',
+    warning: "This is a starting draft, not professional advice — for registration, licensing, contracts, or funding, confirm the details with a qualified professional before acting on them.",
   },
   {
     slug: 'business-research',
@@ -140,6 +141,7 @@ export const tools: Tool[] = [
     description: 'Work out take-home pay from a salary.',
     icon: '💰',
     category: 'Personal Finance',
+    warning: "These are estimates only, not official tax or financial advice — check your local tax authority (e.g. HMRC in the UK) or a qualified accountant for exact figures.",
   },
   {
     slug: 'budget-planner',
@@ -210,6 +212,8 @@ export const tools: Tool[] = [
     description: 'Plan a gym or workout routine.',
     icon: '🏋️',
     category: 'Health & Wellbeing',
+    warning: "This isn't personal training or medical advice — for an injury, a medical condition, or before starting a new routine, check with a doctor or qualified trainer.",
+    promoteMemory: true,
   },
 
   // Food & Cooking

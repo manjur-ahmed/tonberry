@@ -8,6 +8,8 @@ export const MODEL_PRICING: Record<
   { inputPer1M: number; outputPer1M: number }
 > = {
   'gpt-4o-mini': { inputPer1M: 0.15, outputPer1M: 0.6 },
+  // salary-calculator only (see tool-config.ts) — every other tool is on mini.
+  'gpt-4o': { inputPer1M: 2.5, outputPer1M: 10.0 },
 };
 
 export function calculateCostUsd(
