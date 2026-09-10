@@ -21,6 +21,12 @@ import GymPlannerItemView from './gym-planner/ItemView'
 import BusinessPlanItemView from './business-plan/ItemView'
 import BusinessResearchItemView from './business-research/ItemView'
 import SalaryCalculatorItemView from './salary-calculator/ItemView'
+import ActivityFinderItemView from './day-activity/ItemView'
+import HolidayPlanningItemView from './holiday-planning/ItemView'
+import EventPlannerItemView from './event-planner/ItemView'
+import AdCreatorItemView from './ad-creator/ItemView'
+import CareerPlannerItemView from './career-planner/ItemView'
+import BudgetPlannerItemView from './budget-planner/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -51,6 +57,12 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'business-plan': BusinessPlanItemView,
   'business-research': BusinessResearchItemView,
   'salary-calculator': SalaryCalculatorItemView,
+  'day-activity': ActivityFinderItemView,
+  'holiday-planning': HolidayPlanningItemView,
+  'event-planner': EventPlannerItemView,
+  'ad-creator': AdCreatorItemView,
+  'career-planner': CareerPlannerItemView,
+  'budget-planner': BudgetPlannerItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

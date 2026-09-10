@@ -9,7 +9,7 @@ const categoryStyles: Record<ToolCategory, { icon: string; shadow: string }> = {
   Shopping: { icon: 'bg-amber-100', shadow: 'bg-amber-200' },
   'Health & Wellbeing': { icon: 'bg-emerald-100', shadow: 'bg-emerald-200' },
   'Food & Cooking': { icon: 'bg-orange-100', shadow: 'bg-orange-200' },
-  'Travel & Leisure': { icon: 'bg-cyan-100', shadow: 'bg-cyan-200' },
+  'Leisure & Events': { icon: 'bg-cyan-100', shadow: 'bg-cyan-200' },
   'Politics & Current Affairs': { icon: 'bg-violet-100', shadow: 'bg-violet-200' },
   'How-to & Fixes': { icon: 'bg-red-100', shadow: 'bg-red-200' },
 }

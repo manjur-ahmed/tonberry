@@ -6,7 +6,7 @@ export const categories = [
   'Food & Cooking',
   'Entertainment & Media',
   'Politics & Current Affairs',
-  'Travel & Leisure',
+  'Leisure & Events',
   'Personal Finance',
   'Business',
 ] as const
@@ -117,7 +117,6 @@ export const tools: Tool[] = [
     description: 'Draft a simple business plan.',
     icon: '📈',
     category: 'Business',
-    warning: "This is a starting draft, not professional advice — for registration, licensing, contracts, or funding, confirm the details with a qualified professional before acting on them.",
   },
   {
     slug: 'business-research',
@@ -129,7 +128,7 @@ export const tools: Tool[] = [
   {
     slug: 'ad-creator',
     name: 'Ad Creator',
-    description: 'Write ad copy for a product or service.',
+    description: 'Write a ready-to-post listing for something you’re selling.',
     icon: '📣',
     category: 'Business',
   },
@@ -141,7 +140,6 @@ export const tools: Tool[] = [
     description: 'Work out take-home pay from a salary.',
     icon: '💰',
     category: 'Personal Finance',
-    warning: "These are estimates only, not official tax or financial advice — check your local tax authority (e.g. HMRC in the UK) or a qualified accountant for exact figures.",
   },
   {
     slug: 'budget-planner',
@@ -149,6 +147,8 @@ export const tools: Tool[] = [
     description: 'Plan a monthly budget.',
     icon: '📊',
     category: 'Personal Finance',
+    warning: "This isn't financial advice, for debt, tax, or investment decisions, speak to a qualified financial adviser.",
+    promoteMemory: true,
   },
   {
     slug: 'career-planner',
@@ -196,7 +196,7 @@ export const tools: Tool[] = [
     description: 'Get self-care ideas and routines.',
     icon: '🧘',
     category: 'Health & Wellbeing',
-    warning: "This isn't professional advice — for a skin concern, see a pharmacist or beautician; for anything else about your health or wellbeing, check with a qualified professional too.",
+    warning: "This is general advice, it is recommended to see a pharmacist or beautician to have a closer look at you.",
     promoteMemory: true,
   },
   {
@@ -212,7 +212,6 @@ export const tools: Tool[] = [
     description: 'Plan a gym or workout routine.',
     icon: '🏋️',
     category: 'Health & Wellbeing',
-    warning: "This isn't personal training or medical advice — for an injury, a medical condition, or before starting a new routine, check with a doctor or qualified trainer.",
     promoteMemory: true,
   },
 
@@ -223,7 +222,7 @@ export const tools: Tool[] = [
     description: 'Get diet and nutrition suggestions.',
     icon: '🥗',
     category: 'Food & Cooking',
-    warning: "This isn't medical or dietetic advice — for medical conditions, allergies, or major diet changes, check with a doctor or registered dietitian first.",
+    warning: "This isn't medical advice — for conditions, allergies, or major diet changes, check with a doctor or registered dietitian first.",
     promoteMemory: true,
   },
   {
@@ -236,20 +235,27 @@ export const tools: Tool[] = [
     promoteMemory: true,
   },
 
-  // Travel & Leisure
+  // Leisure & Events
   {
     slug: 'day-activity',
-    name: 'Day Activity',
-    description: 'Get ideas for things to do today.',
+    name: 'Activity Finder',
+    description: 'Find ideas for things to do today.',
     icon: '🗺️',
-    category: 'Travel & Leisure',
+    category: 'Leisure & Events',
   },
   {
     slug: 'holiday-planning',
     name: 'Holiday Planning',
     description: 'Plan a trip from start to finish.',
     icon: '✈️',
-    category: 'Travel & Leisure',
+    category: 'Leisure & Events',
+  },
+  {
+    slug: 'event-planner',
+    name: 'Event Planner',
+    description: 'Plan an event, party, or gathering.',
+    icon: '🎉',
+    category: 'Leisure & Events',
   },
 
   // Politics & Current Affairs
@@ -260,7 +266,7 @@ export const tools: Tool[] = [
     icon: '🏛️',
     category: 'Politics & Current Affairs',
     warning:
-      "This isn't legal advice — for a specific legal situation, speak to a qualified lawyer. Views expressed here are the AI's own and don't represent the company.",
+      "For a specific legal situation, speak to a qualified lawyer. Any views expressed here are the AI's own and don't represent the company.",
   },
   {
     slug: 'news',
@@ -278,7 +284,7 @@ export const tools: Tool[] = [
     icon: '🏠',
     category: 'How-to & Fixes',
     warning:
-      "This isn't professional advice, and we're not liable for any damage or injury from following it. For electrics, gas, or structural work, use a qualified tradesperson — some jobs genuinely aren't safe to DIY.",
+      "This isn't professional advice, for electrics, gas, or structural work, use a qualified tradesperson.",
   },
   {
     slug: 'car',
@@ -287,7 +293,7 @@ export const tools: Tool[] = [
     icon: '🚗',
     category: 'How-to & Fixes',
     warning:
-      "This isn't professional advice, and we're not liable for any damage or injury from following it. For brakes, steering, or other safety-critical parts, use a qualified mechanic.",
+      "This isn't professional advice, for brakes, steering, or other safety-critical parts, visit your local garage.",
   },
   {
     slug: 'diy',
@@ -295,8 +301,6 @@ export const tools: Tool[] = [
     description: 'Get step-by-step DIY guidance.',
     icon: '🔨',
     category: 'How-to & Fixes',
-    warning:
-      "This isn't professional advice, and we're not liable for any damage or injury from following it. Work safely, and use a qualified professional for electrics, gas, structural changes, or anything else you're unsure about.",
   },
   {
     slug: 'tech',

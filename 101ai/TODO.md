@@ -35,10 +35,10 @@
   - [x] Quote Finder
   - [x] Business Plan
   - [x] Business Research
-  - [ ] Ad Creator
+  - [x] Ad Creator
   - [x] Salary Calculator
-  - [ ] Budget Planner
-  - [ ] Career Planner
+  - [x] Budget Planner
+  - [x] Career Planner
   - [ ] Shopping
   - [ ] Clothing
   - [ ] Insurance
@@ -48,8 +48,9 @@
   - [ ] Steps Planner
   - [x] Gym Planner
   - [x] Cooking
-  - [ ] Day Activity
-  - [ ] Holiday Planning
+  - [x] Activity Finder
+  - [x] Holiday Planning
+  - [x] Event Planner
   - [x] Politics & Law
   - [ ] News
   - [x] Home
@@ -69,6 +70,7 @@
 - [ ] Enable actually purchasing Plus/Premium — Pricing page has both permanently disabled ("Coming soon"), so every plan-gated feature (Memory, unlimited items) is currently unreachable by any real user
 - [ ] Fix the Memory toggle — Settings' toggle is local-only and never saved to the backend, while Chat's "Memory on/off" indicator instead reads off `user.plan`; the two are disconnected and neither can be legitimately exercised until Plus/Premium purchase exists
 - [ ] Persist thumbs up/down message feedback — currently local UI state only, discarded on remount, no backend call
+- [ ] Fix the "Copy" button on every structured-output tool's reply — it copies the raw JSON message content, not the rendered text (e.g. copying a diet plan pastes `{"kind":"plan",...}`). Fixed for Ad Creator specifically (see `onCopyTextChange` in responseViews.tsx/Chat.tsx — a ResponseView can report a plain-text override), but every other tool still has the underlying issue; worth going through and wiring the same override wherever a copy-pasteable result actually matters
 - [ ] Wire up or remove the dashboard's "Examples" tab — always shows the same placeholder text for every tool, no real data source
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
 - [ ] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
@@ -109,4 +111,4 @@
 
 ---
 
-**Progress: 20/96 tasks complete (21%)**
+**Progress: 26/97 tasks complete (27%)**

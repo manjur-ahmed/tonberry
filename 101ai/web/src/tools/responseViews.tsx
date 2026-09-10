@@ -21,6 +21,12 @@ import GymPlannerResponse from './gym-planner/ResponseView'
 import BusinessPlanResponse from './business-plan/ResponseView'
 import BusinessResearchResponse from './business-research/ResponseView'
 import SalaryCalculatorResponse from './salary-calculator/ResponseView'
+import ActivityFinderResponse from './day-activity/ResponseView'
+import HolidayPlanningResponse from './holiday-planning/ResponseView'
+import EventPlannerResponse from './event-planner/ResponseView'
+import AdCreatorResponse from './ad-creator/ResponseView'
+import CareerPlannerResponse from './career-planner/ResponseView'
+import BudgetPlannerResponse from './budget-planner/ResponseView'
 
 export type SaveStatus = 'saving' | 'saved' | 'error' | 'limit-reached'
 
@@ -41,6 +47,14 @@ export interface ResponseViewProps {
   // their save mutation's progress here so a sibling MessageActions can
   // show a status indicator next to the dislike button.
   onSaveStatusChange?: (status: SaveStatus) => void
+  // `content` is always the raw JSON reply — fine for most tools (nobody
+  // needs to paste a diet plan's JSON elsewhere), but wrong for a tool
+  // whose whole point is a copy-pasteable result (see ad-creator). A
+  // ResponseView that renders something meant to be copied as plain text
+  // reports the human-readable version here; MessageActions' copy button
+  // uses it instead of raw content when set. Most tools never call this,
+  // which is fine — undefined leaves the raw-content fallback untouched.
+  onCopyTextChange?: (text: string | null) => void
 }
 
 // Slug -> custom renderer for that tool's AI replies. Anything not listed
@@ -67,6 +81,12 @@ const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'business-plan': BusinessPlanResponse,
   'business-research': BusinessResearchResponse,
   'salary-calculator': SalaryCalculatorResponse,
+  'day-activity': ActivityFinderResponse,
+  'holiday-planning': HolidayPlanningResponse,
+  'event-planner': EventPlannerResponse,
+  'ad-creator': AdCreatorResponse,
+  'career-planner': CareerPlannerResponse,
+  'budget-planner': BudgetPlannerResponse,
 }
 
 export function getResponseView(slug: string): ComponentType<ResponseViewProps> {

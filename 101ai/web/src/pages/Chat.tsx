@@ -87,6 +87,10 @@ function Chat() {
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [saveStatuses, setSaveStatuses] = useState<Record<string, SaveStatus>>({})
   const [itemLimitNoticeMessageId, setItemLimitNoticeMessageId] = useState<string | null>(null)
+  // Populated only by a ResponseView that calls onCopyTextChange (see
+  // ResponseViewProps) — everything else falls back to raw message.content
+  // below, unchanged from before this existed.
+  const [copyTexts, setCopyTexts] = useState<Record<string, string>>({})
 
   function handleSaveStatusChange(messageId: string, status: SaveStatus) {
     setSaveStatuses((current) => ({ ...current, [messageId]: status }))
@@ -96,6 +100,17 @@ function Chat() {
       markItemLimitNoticeSeen(chatId)
       setItemLimitNoticeMessageId(messageId)
     }
+  }
+
+  function handleCopyTextChange(messageId: string, text: string | null) {
+    setCopyTexts((current) => {
+      if (text === null) {
+        if (!(messageId in current)) return current
+        const { [messageId]: _removed, ...rest } = current
+        return rest
+      }
+      return { ...current, [messageId]: text }
+    })
   }
 
   const { data: chat, isLoading } = useQuery({
@@ -359,8 +374,9 @@ function Chat() {
                 chatId={chat.id}
                 messageId={message.id}
                 onSaveStatusChange={(status) => handleSaveStatusChange(message.id, status)}
+                onCopyTextChange={(text) => handleCopyTextChange(message.id, text)}
               />
-              <MessageActions content={message.content} saveStatus={saveStatuses[message.id]} />
+              <MessageActions content={copyTexts[message.id] ?? message.content} saveStatus={saveStatuses[message.id]} />
               {itemLimitNoticeMessageId === message.id && <ItemLimitBanner />}
             </div>
           ),

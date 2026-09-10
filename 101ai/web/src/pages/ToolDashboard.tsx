@@ -39,6 +39,12 @@ const DENSE_ITEM_TOOLS = new Set([
   'business-plan',
   'business-research',
   'salary-calculator',
+  'day-activity',
+  'holiday-planning',
+  'event-planner',
+  'ad-creator',
+  'career-planner',
+  'budget-planner',
 ])
 
 function ToolDashboard() {

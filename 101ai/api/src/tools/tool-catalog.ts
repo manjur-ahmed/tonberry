@@ -136,13 +136,18 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
   },
   {
     slug: 'day-activity',
-    name: 'Day Activity',
-    description: 'Get ideas for things to do today.',
+    name: 'Activity Finder',
+    description: 'Find ideas for things to do today.',
   },
   {
     slug: 'holiday-planning',
     name: 'Holiday Planning',
     description: 'Plan a trip from start to finish.',
+  },
+  {
+    slug: 'event-planner',
+    name: 'Event Planner',
+    description: 'Plan an event, party, or gathering.',
   },
   {
     slug: 'politics',

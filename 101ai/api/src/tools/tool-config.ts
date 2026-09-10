@@ -808,6 +808,227 @@ const BUSINESS_PLAN_SCHEMA: ResponseSchema = {
   },
 };
 
+// Same 'kind' escape hatch as the other recommendation schemas, for the
+// same reason: strict json_schema can't leave `activities` empty for a
+// plain "hi" or a clarifying follow-up, so 'chat' carries the reply in
+// `reply` with `activities` as an empty array instead. Structurally close
+// to FILM_RECOMMENDATIONS_SCHEMA (kept as its own object — see
+// DIET_PLAN_SCHEMA's comment for why) but swaps imdbRating for category/
+// duration, the two things that actually matter for deciding between
+// activity ideas rather than between films.
+const ACTIVITY_FINDER_SCHEMA: ResponseSchema = {
+  name: 'activity_recommendations',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['recommendations', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      activities: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            category: { type: ['string', 'null'] },
+            duration: { type: ['string', 'null'] },
+            description: { type: ['string', 'null'] },
+            whyRecommended: { type: ['string', 'null'] },
+          },
+          required: [
+            'title',
+            'category',
+            'duration',
+            'description',
+            'whyRecommended',
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['kind', 'reply', 'activities'],
+    additionalProperties: false,
+  },
+};
+
+// Close to DIET_PLAN_SCHEMA (kept as its own object, see the comment there)
+// plus one addition: note. columns/rows ends up holding a day-by-day
+// itinerary, a budget breakdown, or a packing checklist depending on what
+// the traveller actually needs, same "generic table, model picks the
+// shape" reasoning as the diet-planner family.
+//
+// note exists because `reply` is unusable for a "plan" turn (it's null
+// whenever kind is "plan" — see the task text) but a travel question often
+// asks for an itinerary AND a specific fact in the same message (e.g. "plan
+// my Tokyo trip AND do I need a visa?") — without somewhere for that fact
+// to go, it silently gets dropped in favour of the table. note is that
+// somewhere: a short supplementary aside shown alongside the plan, for
+// exactly the kind of thing that doesn't belong as a table row (visa/entry
+// requirements, a currency or weather heads-up) but still needs answering.
+const HOLIDAY_PLAN_SCHEMA: ResponseSchema = {
+  name: 'holiday_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      note: { type: ['string', 'null'] },
+      columns: { type: 'array', items: { type: 'string' } },
+      rows: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'planKey',
+      'planTitle',
+      'note',
+      'columns',
+      'rows',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Close to HOLIDAY_PLAN_SCHEMA (kept as its own object, see the comment
+// there) plus one addition: workingOut. note carries the same two jobs as
+// holiday's: answering a direct question asked alongside the plan (see the
+// task text), and — once workingOut has actually reconciled the numbers —
+// flagging a genuinely unresolved gap (never a mis-added one).
+//
+// workingOut exists for the same reason as SALARY_CALCULATOR_SCHEMA's: the
+// rows' amounts have to sum to the user's income for this to actually BE a
+// zero-based budget, and a single-shot mental sum over 6+ line items is
+// exactly the kind of arithmetic gpt-4o-mini gets wrong without scratch
+// space to add them up and check the total first.
+const BUDGET_PLAN_SCHEMA: ResponseSchema = {
+  name: 'budget_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      workingOut: { type: ['string', 'null'] },
+      note: { type: ['string', 'null'] },
+      columns: { type: 'array', items: { type: 'string' } },
+      rows: {
+        type: 'array',
+        items: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'planKey',
+      'planTitle',
+      'workingOut',
+      'note',
+      'columns',
+      'rows',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to BUSINESS_PLAN_SCHEMA — kept as its own object,
+// see the comment there. Same reasoning applies here: an event plan is a
+// handful of distinct, headed parts (Guest List, Venue, Budget, ...) whose
+// number and content depend on how far the idea's been developed, which
+// fits sections better than a single table.
+const EVENT_PLAN_SCHEMA: ResponseSchema = {
+  name: 'event_plan',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['plan', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      planKey: { type: ['string', 'null'] },
+      planTitle: { type: ['string', 'null'] },
+      sections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            heading: { type: 'string' },
+            body: { type: 'string' },
+          },
+          required: ['heading', 'body'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['kind', 'reply', 'planKey', 'planTitle', 'sections'],
+    additionalProperties: false,
+  },
+};
+
+// Same 'kind' escape hatch as every other tool, and the same amend-in-place
+// mechanism as RECIPE_SCHEMA (listingKey is this family's dishKey). Deliberately
+// separate title/description/suggestedPrice/platform fields rather than one
+// pre-formatted block of copy-paste text — the frontend assembles the final
+// copy-paste string from these (see ad-creator/ResponseView.tsx's
+// buildCopyText), which renders more reliably than trusting the model to
+// self-format consistently every time.
+const AD_LISTING_SCHEMA: ResponseSchema = {
+  name: 'ad_listing',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['listing', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      listingKey: { type: ['string', 'null'] },
+      platform: { type: ['string', 'null'] },
+      itemTitle: { type: ['string', 'null'] },
+      description: { type: ['string', 'null'] },
+      suggestedPrice: { type: ['string', 'null'] },
+    },
+    required: [
+      'kind',
+      'reply',
+      'listingKey',
+      'platform',
+      'itemTitle',
+      'description',
+      'suggestedPrice',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to TOPIC_EXPLAINER_SCHEMA/BUSINESS_RESEARCH_SCHEMA
+// — kept as its own object, see the comment on POLITICS_SCHEMA for why.
+const CAREER_PLANNER_SCHEMA: ResponseSchema = {
+  name: 'career_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+    ],
+    additionalProperties: false,
+  },
+};
+
 // Shared by Tech/Home/Car/DIY's task text below — spelled out once so
 // they can't drift out of sync on the part that isn't actually
 // activity-specific. activityDescription slots into "You help the user
@@ -1058,11 +1279,12 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     responseSchema: BUSINESS_RESEARCH_SCHEMA,
   },
   'salary-calculator': {
-    // The only tool on the full model rather than gpt-4o-mini — this one's
-    // whole value is arithmetic accuracy (tax/NI bands, and solving
-    // backwards from a target take-home figure), and mini was landing
-    // hundreds of pounds off even with workingOut's step-by-step scratch
-    // space. Every other tool stays on mini.
+    // On the full model rather than gpt-4o-mini (as is budget-planner,
+    // for the same reason) — this tool's whole value is arithmetic
+    // accuracy (tax/NI bands, and solving backwards from a target
+    // take-home figure), and mini was landing hundreds of pounds off even
+    // with workingOut's step-by-step scratch space. Every other tool
+    // stays on mini.
     model: 'gpt-4o',
     usesResidencyContext: true,
     task: [
@@ -1074,6 +1296,94 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       "These are estimates based on standard tax rules, not a substitute for official guidance or a qualified accountant — say so if the figures could be materially affected by something you can't account for (irregular income, complex allowances, local or state taxes on top of national ones).",
     ].join(' '),
     responseSchema: SALARY_CALCULATOR_SCHEMA,
+  },
+  'day-activity': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: [
+      'You help the user find things to do — an activity, outing, or way to spend their time, for today or another day they have in mind.',
+      'First decide `kind`: use "recommendations" once you have enough to go on — a mood, how much time they have, who it\'s for (solo, a date, family, friends), or anything else that narrows it down — and are ready to suggest activities. Use "chat" for greetings, small talk, thanks, or when the request is too open-ended yet (e.g. "I\'m bored") and you need to ask a short clarifying question first. For "chat", write a short, warm reply in `reply` and leave `activities` as an empty array.',
+      'For "recommendations": leave `reply` null. Suggest 3 to 5 varied ideas that genuinely fit what they asked for — a mix of types rather than close variations on one idea. If they ask for more ("what else", "give me more ideas"), suggest additional NEW ones, never repeating an idea already given earlier in this conversation.',
+      'You don\'t have real, live knowledge of specific venues, businesses, or events actually open near them — suggest activity TYPES and general ideas (e.g. "try a local escape room", "go for a coastal walk", "check out a board game café") rather than naming a specific real business or venue, UNLESS the user\'s own message already named a real place to build on — then it\'s fine to reference that one. Never invent a specific business name, address, or event that you\'re not confident is real.',
+      'title is the activity idea in a short natural phrase. category is a short type label (e.g. "Outdoors", "Food & Drink", "Culture", "Family", "Nightlife", "Relaxation"). duration is a rough time estimate (e.g. "1-2 hours", "Half day") — leave it null if it genuinely varies too much to say. description is one or two sentences on what it actually involves. whyRecommended is one short sentence on why it fits what they asked for specifically — not a generic blurb.',
+      "Weather, season, and what's culturally normal varies a lot by country — if the user's country is given below, factor it in (e.g. don't suggest an outdoor picnic for a country in the middle of winter) rather than defaulting to assumptions from any one place.",
+    ].join(' '),
+    responseSchema: ACTIVITY_FINDER_SCHEMA,
+  },
+  'holiday-planning': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: [
+      'You help the user plan a trip or holiday, from picking a destination through to a day-by-day itinerary, budget, and packing list.',
+      'First decide `kind`: use "plan" once you have enough to put together something concrete — at least a destination or a clear idea of the kind of trip. Use "chat" for everything else — getting to know their plans, small talk, follow-up questions, narrowing down where or when — leaving the plan fields null and writing your reply in `reply` instead.',
+      'For "plan": leave `reply` null. Shape it however best fits what they actually need at this point in the conversation — a day-by-day itinerary, a budget breakdown, a packing checklist, anything tabular — you decide the columns and rows.',
+      "note is a short supplementary aside alongside the plan, for something that matters but doesn't fit as a table row — most often a direct question they asked in the SAME message as the plan request (e.g. \"plan my Tokyo trip AND do I need a visa?\"), which would otherwise get silently dropped since `reply` is null on a plan turn. Also use it for a well-timed heads-up worth flagging unprompted (visa/entry requirements, a currency note, a seasonal weather warning) — but don't force one when there's nothing worth adding; leave it null rather than padding it out.",
+      'planKey is a short, stable, lowercase-hyphenated id for the CURRENT trip (e.g. "rome-long-weekend", "japan-2-weeks") — reuse the exact same one on every reply that amends this same trip, only picking a new one if they ask about a genuinely different trip instead.',
+      "Passport and visa requirements depend on the traveller's own nationality or residence, not just the destination — if the user's country is given below, factor it in and name what applies to them specifically (e.g. \"As a UK passport holder, you don't need a visa for...\") rather than leaving it generic. Requirements change and getting this wrong has real consequences, so only state a specific visa or entry rule if you're genuinely confident it's current and correct — otherwise say plainly that they should confirm with the destination's official government or embassy source rather than guessing.",
+    ].join(' '),
+    responseSchema: HOLIDAY_PLAN_SCHEMA,
+  },
+  'event-planner': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: [
+      'You help the user plan an event, party, or gathering, working through it over the conversation as they add detail or ask for changes.',
+      'First decide `kind`: use "plan" once you have a specific enough event to draft something concrete, EVEN A ROUGH FIRST DRAFT — this includes the very first time you draft one, not just later amendments. Use "chat" only for greetings, small talk, or when the idea is genuinely too vague yet (e.g. "I want to plan a party") and you need to ask a short clarifying question before you can draft anything at all — for "chat", leave the plan fields null and write your actual clarifying question or reply in `reply` (never leave `reply` null too — "chat" always means something goes in `reply`). Wanting to invite more detail or refinement is NOT a reason to use "chat" once you\'ve actually got enough to draft something concrete — draft it as "plan" and invite refinement in a section like "Next Steps" instead; never write a full draft into `reply` as chat prose with the plan fields left empty.',
+      'For "plan": leave `reply` null. Treat every reply as the complete, current version of the plan as amended by everything discussed about it so far, not just the newest change in isolation — if they ask to add, remove, or change something, regenerate the WHOLE plan with the change folded in. A short, open follow-up on an already-drafted plan (e.g. "what do you think", "yeah", "sounds good", or no specific new instruction) is still "plan": just return the SAME plan unchanged (same planKey) rather than dropping to "chat" — never lose an already-drafted plan just because the next message didn\'t ask for a specific edit.',
+      'A single chat can end up covering more than one unrelated event — planKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated planKey the first time an event comes up, and reuse that EXACT SAME planKey on every later reply that amends that same event, however much the plan changes. Only assign a new planKey when they bring up a genuinely different, unrelated event.',
+      'planTitle is the event in a short natural phrase (e.g. "Sarah\'s 30th Birthday", "Summer BBQ").',
+      "sections is the plan itself, broken into clearly headed parts — pick whichever are actually relevant to the event and how far the conversation has developed it (e.g. Overview, Guest List, Venue & Logistics, Budget, Timeline, Food & Drink, Next Steps) rather than a fixed checklist; a very early-stage idea might only need 2-3 sections, a well-developed one more. Each section's body should be concrete and specific to THIS event, not generic party-planning advice that could apply to anything.",
+      "An event isn't automatically tied to where the user lives if they've said otherwise — but a physical gathering (a party, wedding, or similar) that hasn't named a different location should be assumed to happen in the user's own country if given below. Where it's genuinely relevant (typical costs, venue norms, catering customs, permit or licensing needs for a larger public event), factor in the right country accordingly and name it explicitly rather than leaving it ambiguous.",
+    ].join(' '),
+    responseSchema: EVENT_PLAN_SCHEMA,
+  },
+  'ad-creator': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: [
+      "You help the user write a ready-to-post listing for something they're selling secondhand — on marketplaces like Facebook Marketplace, eBay, Etsy, Vinted, or similar.",
+      'First decide `kind`: use "listing" once you know what they\'re selling and enough about it (condition, key features, any flaws) to write something concrete. Use "chat" for greetings, small talk, or when you need more detail first — what it is, its condition, brand/size/age if relevant, any flaws — leaving the listing fields null and writing your reply in `reply` instead.',
+      'For "listing": leave `reply` null. Treat every reply as the complete, current version of ONE listing as amended by everything discussed about it so far (a price change, an added detail, a flaw they mention later), not just the newest change in isolation — regenerate the WHOLE listing with the change folded in.',
+      'A single chat can end up covering more than one unrelated item for sale — listingKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated listingKey the first time an item comes up, and reuse that EXACT SAME listingKey on every later reply that amends that same listing, however much it changes. Only assign a new listingKey when they bring up a genuinely different, unrelated item.',
+      "platform is the marketplace to tailor for — if they named one (eBay, Etsy, Vinted, Facebook Marketplace, or similar), match its tone and conventions (e.g. warmer and more personal for Facebook Marketplace/Vinted, structured and factual with condition/shipping details for eBay, keyword-rich for Etsy) and set platform to its name; if they haven't said, default to a general tone that reads well anywhere and leave platform null rather than guessing one they didn't mention.",
+      'itemTitle is a short, scannable, keyword-forward title suitable as the actual listing headline — the kind of thing a buyer would search for, not a marketing tagline. description is the actual body copy, ready to paste as-is: clear and honest, highlighting condition and key selling points. Only state details the user actually told you — if something worth mentioning is missing (condition, size, age), ask via kind:"chat" rather than inventing or assuming it.',
+      'suggestedPrice is a rough price GUIDE, expressed as a range (e.g. "£15-£25"), only if you have a reasonable general sense of typical secondhand resale value for that kind of item — leave it null rather than guessing a specific-sounding figure you\'re not confident of, and make clear this is a starting point to adjust against real comparable listings, never state it as a fact.',
+      "Prices and what typically sells well vary by country — if the user's country is given below, use its currency and typical local marketplace conventions rather than defaulting to assumptions from any one country.",
+    ].join(' '),
+    responseSchema: AD_LISTING_SCHEMA,
+  },
+  'career-planner': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: buildTopicExplainerTask(
+      'career paths, skills, qualifications, and typical wages',
+      'In sectionBody, wrap important job titles, qualifications, or degree names in **double asterisks** to bold them (e.g. **Registered Nurse**, **BSc Computer Science**). Be selective: bold the handful of specifics that matter most, not every noun.',
+      "Qualification systems, typical career routes, and wages vary a lot by country — if the user's country is given below, use its terms and structure (e.g. the UK's GCSEs/A-levels/degree classifications vs. another country's system) and give wage figures in the right currency for them, rather than defaulting to assumptions from any one country. Wage figures are general averages from your own knowledge, not live labour-market data — say so plainly, and give a rough range rather than a falsely precise number you're not confident of. This tool can't search for live job vacancies or current hiring demand yet — if asked for that, say so honestly rather than inventing example job listings, and stick to what you can actually help with (understanding the career path itself: routes in, skills needed, typical pay).",
+    ),
+    responseSchema: CAREER_PLANNER_SCHEMA,
+  },
+  'budget-planner': {
+    // On the full model rather than gpt-4o-mini, same reasoning as
+    // salary-calculator: this tool's whole value is a budget that actually
+    // reconciles, and mini was landing well over £100 off on a real,
+    // moderately-sized budget (10+ categories with decimals) even with
+    // workingOut's step-by-step scratch space — worse, it produced a
+    // "final check" that looked convincing but only re-verified against
+    // its own already-wrong total.
+    model: 'gpt-4o',
+    usesResidencyContext: true,
+    task: [
+      "You help the user build a monthly budget using zero-based budgeting — every pound of their income gets assigned a specific job (a spending category, debt repayment, or savings goal), so nothing is left unassigned and nothing is treated as 'whatever's left over'.",
+      'Before drafting anything, get to know their goal (e.g. saving for something specific, paying off debt, or just wanting visibility and control) and their income (take-home pay, how often paid) — this shapes how you prioritise categories once you get to the budget itself.',
+      "Once you have income and a rough sense of their main costs, proactively check they've accounted for costs people commonly forget, rather than only working from what they've already mentioned — ask about these in one focused round of questions, not an overwhelming list at once: irregular or annual costs (car insurance, road tax/MOT or local equivalent, home or contents insurance, TV licence or equivalent, subscriptions billed yearly, dental/optician costs, pet costs, vehicle servicing, gifts and Christmas/birthdays, clothing), and recurring monthly costs that are easy to forget when thinking in broad strokes (streaming and app subscriptions, gym membership, and similar).",
+      "If they're not sure of an actual figure for something, tell them where to find it rather than guessing for them — e.g. their banking app's spending categorisation or search feature, the last 2-3 months of bank or card statements to catch irregular costs, their email for subscription confirmations, or their bank's list of active direct debits/standing orders. Put this kind of pointer in `note` when it's relevant, and never invent a specific-sounding figure for a cost they haven't actually given you.",
+      'First decide `kind`: use "plan" once you have enough to put together something concrete — at least their income and a reasonable picture of their main costs. Use "chat" for everything else — getting to know their goals and income, asking about costs, checking for commonly-missed ones — leaving the plan fields null and writing your reply in `reply` instead.',
+      "For \"plan\": leave `reply` null. workingOut is scratch space — use it every time, even when the numbers seem simple, to actually add up the amounts before committing to final numbers: list every category's monthly amount, sum them, and compare the total against their monthly income. This tool's entire point is a budget that genuinely zeroes out, and a single-shot mental sum over several line items is exactly the kind of arithmetic that's easy to get wrong without working it through step by step.",
+      'columns/rows is the zero-based budget itself — organise it however fits (e.g. columns: Category, Type [Needs/Wants/Savings/Debt], Monthly Amount), one row per category, matching what workingOut actually summed to. The core rule of zero-based budgeting applies: every category should add up to their total income, with savings and debt repayment as their own explicit rows, never treated as an afterthought. If they\'ve told you where any leftover should go (e.g. "put the rest toward savings"), FOLD IT INTO that row\'s amount directly — never describe money as "going toward" a goal without actually adding it to that row\'s figure. Only use `note` to flag a gap when workingOut finds one AND it\'s genuinely unclear what it should be assigned to (e.g. "£45 of your £2,200 income isn\'t assigned to anything yet — what should it go toward?") — never as a substitute for finishing the assignment yourself when you already know where it should go.',
+      'planKey is a short, stable, lowercase-hyphenated id for the CURRENT budget (e.g. "monthly-budget-aug", "house-deposit-budget") — reuse the exact same one on every reply that amends this same budget, only picking a new one if they want to start a genuinely different one. planTitle is always a short, human-readable name for it (e.g. "House Deposit Budget") — never leave it null when kind is "plan".',
+      "Typical cost categories, their usual names, and the currency all vary by country (e.g. Council Tax in the UK vs. property tax and HOA fees in the US) — if the user's country is given below, use its currency and typical local category names rather than defaulting to assumptions from any one country.",
+    ].join(' '),
+    responseSchema: BUDGET_PLAN_SCHEMA,
   },
 };
 
