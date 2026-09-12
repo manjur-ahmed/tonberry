@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Camera, File, Image, ImagePlus, Pencil, Plus, type LucideIcon } from 'lucide-react'
+import { Camera, File, Image, Layers, Plus, type LucideIcon } from 'lucide-react'
 
 export interface AttachmentMenuItem {
   label: string
@@ -10,11 +10,11 @@ export interface AttachmentMenuItem {
 }
 
 interface AttachmentMenuProps {
-  // Rendered as separate blocks with a divider between them, matching the
-  // reference menu's "Camera/Photos/Files" vs "Create image/Edit image"
-  // split. Defaults to that same set — nothing behind any of them yet
-  // (no camera/file picker or image-gen endpoint), same as the plain
-  // attach button before this had a menu at all.
+  // Each group renders as its own block, with a divider between groups —
+  // only meaningful when there's more than one. Everything today
+  // (Camera/Photos/Files/Items) lives in a single group with no divider;
+  // multiple groups remain supported for a future case that actually needs
+  // the visual split.
   groups?: AttachmentMenuItem[][]
   triggerClassName?: string
   iconClassName?: string
@@ -25,15 +25,17 @@ const DEFAULT_TRIGGER_CLASSNAME =
   'flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500'
 const DEFAULT_ICON_CLASSNAME = 'h-4 w-4'
 
+// "Items" needs a real onClick (open the item-picker sheet — see
+// ItemPickerSheet.tsx) to do anything, so unlike the old Create/Edit image
+// stubs this isn't exported as a shared constant — a real caller
+// (Chat.tsx/ToolDashboard.tsx) builds its own version wired to its own
+// sheet-open state, the same way it already does for Camera/Photos/Files.
 const DEFAULT_GROUPS: AttachmentMenuItem[][] = [
   [
     { label: 'Camera', icon: Camera, onClick: () => {} },
     { label: 'Photos', icon: Image, onClick: () => {} },
     { label: 'Files', icon: File, onClick: () => {} },
-  ],
-  [
-    { label: 'Create image', icon: ImagePlus, onClick: () => {} },
-    { label: 'Edit image', icon: Pencil, onClick: () => {} },
+    { label: 'Items', icon: Layers, onClick: () => {} },
   ],
 ]
 

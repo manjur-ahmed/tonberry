@@ -13,6 +13,24 @@ export const categories = [
 
 export type ToolCategory = (typeof categories)[number]
 
+// Per-category color pair — `icon` for a tool/item's icon badge background,
+// `shadow` for ToolCard's offset drop-shadow block behind it. Lives here
+// (not in a component file) so it's just a plain data import for anything
+// that needs a tool's category color, without dragging react-refresh's
+// only-export-components rule into it.
+export const categoryStyles: Record<ToolCategory, { icon: string; shadow: string }> = {
+  Education: { icon: 'bg-sky-100', shadow: 'bg-sky-200' },
+  'Entertainment & Media': { icon: 'bg-fuchsia-100', shadow: 'bg-fuchsia-200' },
+  Business: { icon: 'bg-indigo-100', shadow: 'bg-indigo-200' },
+  'Personal Finance': { icon: 'bg-rose-100', shadow: 'bg-rose-200' },
+  Shopping: { icon: 'bg-amber-100', shadow: 'bg-amber-200' },
+  'Health & Wellbeing': { icon: 'bg-emerald-100', shadow: 'bg-emerald-200' },
+  'Food & Cooking': { icon: 'bg-orange-100', shadow: 'bg-orange-200' },
+  'Leisure & Events': { icon: 'bg-cyan-100', shadow: 'bg-cyan-200' },
+  'Politics & Current Affairs': { icon: 'bg-violet-100', shadow: 'bg-violet-200' },
+  'How-to & Fixes': { icon: 'bg-red-100', shadow: 'bg-red-200' },
+}
+
 // One entry in the compose FAB's menu when a tool opts into
 // multiActionCompose (see Tool below) — 'note' sends the user straight into
 // NoteEditor to start writing; 'chat' opens the existing chat composer

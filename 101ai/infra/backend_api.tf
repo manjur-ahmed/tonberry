@@ -44,6 +44,12 @@ resource "aws_lambda_function" "api" {
       ADMIN_EMAIL                = var.admin_email
       FRONTEND_URL               = "https://101ai.tonberry.co.uk"
       GOOGLE_CALLBACK_URL        = "https://api.101ai.tonberry.co.uk/auth/google/callback"
+      # S3_ENDPOINT/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY deliberately unset
+      # here — this Lambda talks to real S3 via aws_iam_role.lambda_exec's
+      # own permissions (see uploads.tf), not a static key pair the way
+      # local dev's MinIO needs.
+      S3_BUCKET = aws_s3_bucket.uploads.bucket
+      S3_REGION = var.aws_region
     }
   }
 

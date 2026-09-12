@@ -625,6 +625,37 @@ const SALARY_CALCULATOR_SCHEMA: ResponseSchema = {
   },
 };
 
+// Unlike SALARY_CALCULATOR_SCHEMA, there's no separate hidden workingOut
+// scratch field here — for this tool the shown `steps` themselves ARE the
+// worked-through reasoning (that's the whole point of the tool), so there's
+// nothing to compress into a final summary the way a salary breakdown table
+// is. `answer` just pulls the final result out on its own so the UI can
+// show it distinctly from the numbered steps, rather than making the user
+// hunt for it in the last line.
+const MATHS_SOLVER_SCHEMA: ResponseSchema = {
+  name: 'maths_solution',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['solution', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      problemKey: { type: ['string', 'null'] },
+      problemTitle: { type: ['string', 'null'] },
+      steps: { type: 'array', items: { type: 'string' } },
+      answer: { type: ['string', 'null'] },
+    },
+    required: [
+      'kind',
+      'reply',
+      'problemKey',
+      'problemTitle',
+      'steps',
+      'answer',
+    ],
+    additionalProperties: false,
+  },
+};
+
 // Shared shape for every "diagnose, then work through ordered steps,
 // refining as the user reports back what happened" tool — Tech, Home, Car,
 // DIY. Same 'kind' escape hatch, same dedup mechanism as RECIPE_SCHEMA/
@@ -1311,6 +1342,24 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       "These are estimates based on standard tax rules, not a substitute for official guidance or a qualified accountant — say so if the figures could be materially affected by something you can't account for (irregular income, complex allowances, local or state taxes on top of national ones).",
     ].join(' '),
     responseSchema: SALARY_CALCULATOR_SCHEMA,
+  },
+  'maths-solver': {
+    // On the full model rather than gpt-4o-mini, same reasoning as
+    // salary-calculator and budget-planner — getting the final answer
+    // wrong is the one thing this tool must never do, and mini is
+    // meaningfully more error-prone on multi-step algebra than a simple
+    // lookup-style reply. Every other tool stays on mini.
+    model: 'gpt-4o',
+    task: [
+      "You help the user solve a maths problem, showing the full working rather than jumping straight to the answer.",
+      'First decide `kind`: use "solution" once they\'ve actually given you a problem to solve. Use "chat" for greetings, small talk, thanks, or when they haven\'t given you a real problem yet and you need to ask what they\'d like solved — leaving the solution fields null/empty and writing your reply in `reply` instead.',
+      'For "solution": leave `reply` null. steps is the ordered working — every real step needed to get from the problem to the answer (don\'t skip arithmetic or algebraic manipulation a student would need to see to follow along), each step focused on one clear operation or piece of reasoning rather than several combined into one. Treat every reply as the CURRENT best explanation given everything asked so far — if they ask you to explain a step more, correct something, or continue, revise the steps around that rather than only describing the new detail in isolation.',
+      'answer is the final result stated plainly on its own (e.g. "x = -2 or x = -3", "42") — never left null once kind is "solution".',
+      "Work through the arithmetic and algebra carefully and actually verify your own working — substitute the answer back into the original problem and confirm it holds, or otherwise sanity-check it — rather than pattern-matching to a plausible-looking answer. Getting the final answer wrong is the one thing this tool must never do.",
+      'problemKey is a short, stable, lowercase-hyphenated id for the CURRENT problem (e.g. "quadratic-x2-5x-6", "fraction-addition") — reuse the exact same one on every reply still about this same problem, only picking a new one when they move on to a genuinely different problem. problemTitle is a short, human-readable description of the problem (e.g. "Solve x² + 5x + 6 = 0") — never leave it null when kind is "solution".',
+      "If a photo's attached, that's the problem — read it directly off the image (handwritten or printed) rather than asking them to type it out, and solve what's actually shown. If the photo is unclear or you can't confidently make out part of it, say so specifically (what you can and can't read) rather than guessing at illegible parts.",
+    ].join(' '),
+    responseSchema: MATHS_SOLVER_SCHEMA,
   },
   'day-activity': {
     model: 'gpt-4o-mini',

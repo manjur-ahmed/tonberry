@@ -28,5 +28,31 @@ services:
       postgres:
         condition: service_healthy
 
+  # Local stand-in for prod's S3 bucket (chat/note attachments) — S3-API-
+  # compatible, so 101ai/api's upload code (presigned PUT/GET URLs) runs
+  # unmodified against this locally and against real S3 in prod, just a
+  # different S3_ENDPOINT/credentials in .env. Console UI at :9001 is for
+  # poking around during dev, not used by the app itself.
+  # quay.io, not the minio/minio Docker Hub image — MinIO moved official
+  # image distribution there; the old Docker Hub repo now refuses pulls.
+  minio:
+    image: quay.io/minio/minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tonberry}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tonberry123}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
 volumes:
   postgres_data:
+  minio_data:

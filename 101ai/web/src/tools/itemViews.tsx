@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import DefaultItemView from './default/ItemView'
 import WordHelperItemView from './word-helper/ItemView'
+import MathsSolverItemView from './maths-solver/ItemView'
 import FilmRecommendationsItemView from './film-recommendations/ItemView'
 import BookRecommendationsItemView from './book-recommendations/ItemView'
 import MusicRecommendationsItemView from './music-recommendations/ItemView'
@@ -38,6 +39,7 @@ export interface ItemViewProps {
 // here falls back to DefaultItemView (title only).
 const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'word-helper': WordHelperItemView,
+  'maths-solver': MathsSolverItemView,
   'film-recommendations': FilmRecommendationsItemView,
   'book-recommendations': BookRecommendationsItemView,
   'music-recommendations': MusicRecommendationsItemView,

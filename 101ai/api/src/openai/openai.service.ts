@@ -42,6 +42,19 @@ export interface GenerateReplyParams {
   // law a jurisdiction-dependent question means. Null/undefined for a user
   // who hasn't set it yet; getToolConfig just omits the context in that case.
   userCountry?: string | null;
+  // Image(s) on this specific turn — presigned, short-lived view URLs
+  // already resolved from the stored S3 keys by the caller (see
+  // ChatsService), never a raw key. Only ever set on the new user message,
+  // not on `history` — a prior turn's own attachments aren't re-sent, same
+  // as OpenAI's own multi-turn vision guidance (the model doesn't need to
+  // re-see an image it already responded to once).
+  attachments?: { url: string; contentType: string }[];
+  // A saved item attached to this turn (see ChatsService.resolveAttachedItem),
+  // already wrapped with its context preamble by the caller — folded into
+  // the same user turn as `message`, not sent as separate history, so the
+  // model reads it as "here's what this message is about" rather than a
+  // detached prior exchange.
+  itemContext?: string;
 }
 
 @Injectable()
@@ -65,6 +78,25 @@ export class OpenAiService {
     if (!config) return PLACEHOLDER_REPLY;
 
     try {
+      // Plain string when there's nothing attached — only switches to the
+      // multi-part content-array form (OpenAI's vision input shape) when
+      // this specific turn actually has an image and/or an attached item,
+      // so every existing text-only tool's request shape is completely
+      // unchanged. itemContext (if any) comes first — it's the thing being
+      // referenced, `message` is what the user actually wants done with it.
+      const hasAttachments =
+        Boolean(params.itemContext) || (params.attachments && params.attachments.length > 0);
+      const userContent = hasAttachments
+        ? [
+            ...(params.itemContext ? [{ type: 'text' as const, text: params.itemContext }] : []),
+            { type: 'text' as const, text: params.message },
+            ...(params.attachments ?? []).map((attachment) => ({
+              type: 'image_url' as const,
+              image_url: { url: attachment.url },
+            })),
+          ]
+        : params.message;
+
       const response = await this.client.chat.completions.create({
         model: config.model,
         messages: [
@@ -73,7 +105,7 @@ export class OpenAiService {
             role: entry.role,
             content: entry.content,
           })),
-          { role: 'user', content: params.message },
+          { role: 'user', content: userContent },
         ],
         max_completion_tokens:
           config.maxCompletionTokens ?? MAX_COMPLETION_TOKENS,

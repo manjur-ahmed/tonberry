@@ -7,10 +7,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Chat } from './chat.entity';
-import { Message, MessageRole } from './message.entity';
+import { AttachedItem, Message, MessageAttachment, MessageRole } from './message.entity';
 import { RouterService } from '../router/router.service';
 import { OpenAiService } from '../openai/openai.service';
 import { ItemsService } from '../items/items.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { getToolCatalogEntry } from '../tools/tool-catalog';
 
 export type ChatResult =
@@ -72,7 +73,123 @@ export class ChatsService {
     private readonly router: RouterService,
     private readonly openai: OpenAiService,
     private readonly items: ItemsService,
+    private readonly uploads: UploadsService,
   ) {}
+
+  private isImageAttachment(attachment: MessageAttachment): boolean {
+    return attachment.contentType.startsWith('image/');
+  }
+
+  // Base64 data: URIs for OpenAiService's vision input, NOT presigned view
+  // urls — a presigned url only works if OpenAI's own servers can fetch it,
+  // and a local MinIO instance behind localhost can't be reached from
+  // anywhere but this machine (confirmed against the real API: it comes
+  // back a hard 400 invalid_image_url). Inlining the bytes instead means
+  // the model never has to fetch anything, which also makes this robust in
+  // prod against S3 network/CORS edge cases, not just a local workaround.
+  // Computed from the *incoming* attachments, before anything's saved,
+  // since the AI call happens first (see createChat/addMessage). Only
+  // image attachments — a PDF/Word/Excel file has no vision equivalent
+  // (see describeNonImageAttachments for how those are handled instead).
+  // undefined (not an empty array) when there's no image attached, so it
+  // can be spread straight into GenerateReplyParams without an extra
+  // branch there.
+  private async resolveAttachmentsForVision(
+    attachments?: MessageAttachment[],
+  ): Promise<{ url: string; contentType: string }[] | undefined> {
+    const images = (attachments ?? []).filter((attachment) => this.isImageAttachment(attachment));
+    if (images.length === 0) return undefined;
+    return Promise.all(
+      images.map(async (attachment) => ({
+        url: await this.uploads.getObjectAsDataUrl(attachment.key, attachment.contentType),
+        contentType: attachment.contentType,
+      })),
+    );
+  }
+
+  // Documents/spreadsheets (see ALLOWED_UPLOAD_CONTENT_TYPES) have no
+  // parsing pipeline here — the model can't see inside them, so the best
+  // it gets is knowing, by filename, that they exist, rather than the
+  // attachment silently vanishing from its context. undefined when
+  // everything attached is an image (or nothing's attached at all).
+  private describeNonImageAttachments(attachments?: MessageAttachment[]): string | undefined {
+    const files = (attachments ?? []).filter((attachment) => !this.isImageAttachment(attachment));
+    if (files.length === 0) return undefined;
+    const list = files.map((file) => `- ${file.filename} (${file.contentType})`).join('\n');
+    return (
+      "The user also attached the following file(s). You can't see their " +
+      "contents — treat this only as knowledge that they exist, and ask " +
+      "the user to paste the relevant text if you need to know what's " +
+      `inside:\n${list}`
+    );
+  }
+
+  // Merges itemContext and the non-image-attachment note into the single
+  // itemContext string GenerateReplyParams accepts — same '---'-separated
+  // shape buildItemContext already uses for multiple items, so the model
+  // reads several distinct pieces of context rather than one blob.
+  // undefined when every part is.
+  private combineContext(...parts: (string | undefined)[]): string | undefined {
+    const nonEmpty = parts.filter((part): part is string => Boolean(part));
+    return nonEmpty.length > 0 ? nonEmpty.join('\n\n---\n\n') : undefined;
+  }
+
+  // A snapshot of each item at send time (title/data as they are *right
+  // now*, not a live reference) — same reasoning as createChatFromItem's
+  // own itemTitle/itemToolSlug columns. getOwnedItem also double-checks
+  // ownership, so a stray/foreign id 404s here rather than leaking another
+  // user's saved item into this message. Returns [] (never null) when
+  // itemIds is empty/undefined, so callers can map over it unconditionally.
+  private async resolveAttachedItems(
+    userId: string,
+    itemIds?: string[],
+  ): Promise<AttachedItem[]> {
+    if (!itemIds || itemIds.length === 0) return [];
+    return Promise.all(
+      itemIds.map(async (itemId) => {
+        const item = await this.items.getOwnedItem(userId, itemId);
+        return {
+          itemId: item.id,
+          toolSlug: item.toolSlug,
+          title: item.title,
+          data: item.data,
+        };
+      }),
+    );
+  }
+
+  // Folds every attached item's full raw data into one itemContext string —
+  // each wrapped with the same preamble and separated by a clear divider,
+  // so the model reads them as several distinct pieces of context rather
+  // than one blob. undefined (not '') when there's nothing attached, so it
+  // can be spread straight into GenerateReplyParams without an extra branch
+  // at each call site.
+  private buildItemContext(attachedItems: AttachedItem[]): string | undefined {
+    if (attachedItems.length === 0) return undefined;
+    return attachedItems
+      .map((item) => wrapItemCardContent(JSON.stringify(item.data)))
+      .join('\n\n---\n\n');
+  }
+
+  // Enriches already-saved messages with a fresh presigned view url per
+  // attachment, in place, for the response the frontend renders a thumbnail
+  // from (see Message.attachments' `url` field) — never persisted, computed
+  // fresh on every read so display keeps working no matter how old the
+  // message is (a stored url would just be a presigned one silently
+  // expiring).
+  private async resolveMessageAttachments(messages: Message[]): Promise<void> {
+    await Promise.all(
+      messages.map(async (message) => {
+        if (!message.attachments) return;
+        message.attachments = await Promise.all(
+          message.attachments.map(async (attachment) => ({
+            ...attachment,
+            url: await this.uploads.getViewUrl(attachment.key),
+          })),
+        );
+      }),
+    );
+  }
 
   async createChat(
     userId: string,
@@ -80,6 +197,8 @@ export class ChatsService {
     firstMessage: string,
     skipRouter = false,
     userCountry: string | null = null,
+    attachments?: MessageAttachment[],
+    itemIds?: string[],
   ): Promise<ChatResult> {
     const routerResult = skipRouter
       ? { redirect: false }
@@ -87,6 +206,8 @@ export class ChatsService {
     if (routerResult.redirect && routerResult.toolSlug) {
       return { type: 'redirect', suggestedTool: routerResult.toolSlug };
     }
+
+    const attachedItems = await this.resolveAttachedItems(userId, itemIds);
 
     // Generated upfront (rather than left to the DB) so OpenAiService can
     // log usage against the real chat/message ids even though the chat
@@ -101,6 +222,11 @@ export class ChatsService {
       chatId,
       messageId: assistantMessageId,
       userCountry,
+      attachments: await this.resolveAttachmentsForVision(attachments),
+      itemContext: this.combineContext(
+        this.buildItemContext(attachedItems),
+        this.describeNonImageAttachments(attachments),
+      ),
     });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     const chat = this.chatsRepository.create({
@@ -113,7 +239,9 @@ export class ChatsService {
         {
           role: MessageRole.USER,
           content: firstMessage,
+          attachedItems: attachedItems.length > 0 ? attachedItems : null,
           createdAt: userTimestamp,
+          attachments: attachments ?? null,
         },
         {
           id: assistantMessageId,
@@ -124,6 +252,7 @@ export class ChatsService {
       ],
     });
     const saved = await this.chatsRepository.save(chat);
+    await this.resolveMessageAttachments(saved.messages);
     return { type: 'reply', chat: saved };
   }
 
@@ -186,6 +315,8 @@ export class ChatsService {
     content: string,
     skipRouter = false,
     userCountry: string | null = null,
+    attachments?: MessageAttachment[],
+    itemIds?: string[],
   ): Promise<ChatResult> {
     const chat = await this.getOwnedChat(userId, chatId);
 
@@ -195,6 +326,8 @@ export class ChatsService {
     if (routerResult.redirect && routerResult.toolSlug) {
       return { type: 'redirect', suggestedTool: routerResult.toolSlug };
     }
+
+    const attachedItems = await this.resolveAttachedItems(userId, itemIds);
 
     const assistantMessageId = randomUUID();
     const replyContent = await this.openai.generateReply({
@@ -210,6 +343,11 @@ export class ChatsService {
       chatId: chat.id,
       messageId: assistantMessageId,
       userCountry,
+      attachments: await this.resolveAttachmentsForVision(attachments),
+      itemContext: this.combineContext(
+        this.buildItemContext(attachedItems),
+        this.describeNonImageAttachments(attachments),
+      ),
     });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     await this.messagesRepository.save([
@@ -218,6 +356,8 @@ export class ChatsService {
         role: MessageRole.USER,
         content,
         createdAt: userTimestamp,
+        attachments: attachments ?? null,
+        attachedItems: attachedItems.length > 0 ? attachedItems : null,
       }),
       this.messagesRepository.create({
         id: assistantMessageId,
@@ -246,6 +386,7 @@ export class ChatsService {
     });
     if (!chat) throw new NotFoundException('Chat not found');
     chat.messages.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+    await this.resolveMessageAttachments(chat.messages);
     return chat;
   }
 

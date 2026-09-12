@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { ChatsModule } from './chats/chats.module';
 import { ItemsModule } from './items/items.module';
 import { UsageLogsModule } from './usage-logs/usage-logs.module';
+import { UploadsModule } from './uploads/uploads.module';
 import { User } from './users/user.entity';
 import { Chat } from './chats/chat.entity';
 import { Message } from './chats/message.entity';
@@ -43,6 +44,7 @@ import { UsageLog } from './usage-logs/usage-log.entity';
     ChatsModule,
     ItemsModule,
     UsageLogsModule,
+    UploadsModule,
   ],
 })
 export class AppModule {}

@@ -24,6 +24,8 @@ export class ChatsController {
       dto.message,
       dto.skipRouter,
       user.country,
+      dto.attachments,
+      dto.itemIds,
     );
   }
 
@@ -52,6 +54,8 @@ export class ChatsController {
       dto.content,
       dto.skipRouter,
       user.country,
+      dto.attachments,
+      dto.itemIds,
     );
   }
 

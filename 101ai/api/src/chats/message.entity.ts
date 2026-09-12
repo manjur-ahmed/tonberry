@@ -13,6 +13,35 @@ export enum MessageRole {
   ASSISTANT = 'assistant',
 }
 
+// key/contentType/filename are what's actually persisted (see the
+// `attachments` column below) — never a URL, since the bucket is private
+// and a stored one would just be a presigned url that quietly expires.
+// `url` is never stored: ChatsService.resolveMessageAttachments fills it in
+// fresh on every read (see there for why), so it's only present on a
+// message once it's come back out of ChatsService, not on one being built
+// for a new save.
+export interface MessageAttachment {
+  key: string;
+  contentType: string;
+  filename: string;
+  url?: string;
+}
+
+// A snapshot of a saved Item attached to a message (see ChatsService's
+// resolveAttachedItem) — not a live reference, so the message keeps showing
+// what was actually attached even if the item's since been edited or
+// deleted. Distinct from isItemCard/itemTitle/itemToolSlug below: those are
+// for a message that IS an item card on its own (createChatFromItem's
+// seeded message, with no user text); this is for an ordinary user message
+// that happens to have one attached alongside its own typed content — same
+// idea as `attachments` for an image, just for a saved item instead.
+export interface AttachedItem {
+  itemId: string;
+  toolSlug: string;
+  title: string;
+  data: unknown;
+}
+
 @Entity('chat_messages')
 export class Message {
   @PrimaryGeneratedColumn('uuid')
@@ -60,6 +89,19 @@ export class Message {
   // tool for those, same as it did before this existed).
   @Column({ name: 'item_tool_slug', type: 'varchar', nullable: true })
   itemToolSlug: string | null;
+
+  // Image attachments on a user message (see UploadsController) — always
+  // null on an assistant reply. Null, not an empty array, on any message
+  // with no attachments (including every one saved before this existed).
+  @Column({ type: 'jsonb', nullable: true })
+  attachments: MessageAttachment[] | null;
+
+  // Saved item(s) attached to this message (see AttachedItem above) —
+  // always null on an assistant reply, and on any message with nothing
+  // attached. Null, not an empty array, when there's nothing attached
+  // (same convention as `attachments` above).
+  @Column({ name: 'attached_items', type: 'jsonb', nullable: true })
+  attachedItems: AttachedItem[] | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

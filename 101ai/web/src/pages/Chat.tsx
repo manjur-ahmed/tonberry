@@ -1,11 +1,22 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Brain, Info } from 'lucide-react'
+import { ArrowDown, ArrowUp, Brain, Camera, File as FileIcon, Image as ImageIcon, Info, Layers, Loader2, X } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import AttachmentMenu from '../components/AttachmentMenu'
+import ItemPickerSheet from '../components/ItemPickerSheet'
+import CompactItemCard from '../components/CompactItemCard'
+import FileAttachmentChip from '../components/FileAttachmentChip'
 import { useAuth } from '../hooks/useAuth'
 import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage } from '../lib/chats'
+import type { Item } from '../lib/items'
+import {
+  ALLOWED_UPLOAD_CONTENT_TYPES,
+  ALLOWED_UPLOAD_FILE_EXTENSIONS,
+  MAX_UPLOAD_SIZE_BYTES,
+  uploadAttachment,
+  type UploadedAttachment,
+} from '../lib/uploads'
 import { delay } from '../lib/delay'
 import { getLoadingDuration } from '../tools/loadingStages'
 import { hasSeenItemLimitNotice, markItemLimitNoticeSeen } from '../lib/itemLimitNotice'
@@ -20,6 +31,40 @@ import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
 const MAX_TEXTAREA_HEIGHT = 88 // ~4 lines at text-sm
 const NEAR_BOTTOM_THRESHOLD = 80 // px
+const MAX_UPLOAD_SIZE_MB = MAX_UPLOAD_SIZE_BYTES / 1024 / 1024
+
+interface SendVars {
+  content: string
+  skipRouter?: boolean
+  attachments?: UploadedAttachment[]
+  // Local blob urls for the optimistic bubble only (see sendMutation's
+  // onMutate) — never sent to the backend. Same order/length as
+  // `attachments` above.
+  previewUrls?: string[]
+  itemIds?: string[]
+  // Full item snapshots for the optimistic bubble only (see onMutate) —
+  // the backend re-resolves its own snapshot from itemIds, this is just so
+  // the compact cards can render instantly without waiting on the round
+  // trip. Same order as itemIds.
+  attachedItems?: Item[]
+}
+
+// One local id per pending upload (assigned at pick time, before the
+// presign/PUT round trip even starts) — lets multiple files be in flight
+// at once, each tracked/removed independently, instead of a single shared
+// slot. previewUrl shows instantly from the local file; uploaded stays
+// null until uploadMutation resolves for this specific id. filename/
+// contentType are captured at pick time (not read off `uploaded`, which
+// is null until the upload finishes) so the pending chip can show the
+// right icon/name immediately — a photo vs. a PDF looks different from
+// the moment it's picked, not just once it's finished uploading.
+interface PendingAttachment {
+  localId: string
+  previewUrl: string
+  filename: string
+  contentType: string
+  uploaded: UploadedAttachment | null
+}
 
 // The app's scroll context is the window itself (see Layout.tsx / BottomNav's
 // own `sticky bottom-0`) — there's no bounded inner container to scroll, so
@@ -73,7 +118,20 @@ function Chat() {
   // gets the same optimistic-bubble + generating-stages treatment as every
   // later message, instead of a separate full-page loader on the dashboard.
   const isNewChat = chatId === 'new'
-  const firstMessage = isNewChat ? (location.state as { firstMessage?: string } | null)?.firstMessage : undefined
+  const newChatState = isNewChat
+    ? (location.state as {
+        firstMessage?: string
+        firstAttachments?: UploadedAttachment[]
+        firstPreviewUrls?: string[]
+        firstItemIds?: string[]
+        firstAttachedItems?: Item[]
+      } | null)
+    : null
+  const firstMessage = newChatState?.firstMessage
+  const firstAttachments = newChatState?.firstAttachments
+  const firstPreviewUrls = newChatState?.firstPreviewUrls
+  const firstItemIds = newChatState?.firstItemIds
+  const firstAttachedItems = newChatState?.firstAttachedItems
   const hasStartedNewChatRef = useRef(false)
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const pendingScrollIdRef = useRef<string | null>(null)
@@ -92,6 +150,22 @@ function Chat() {
   // ResponseViewProps) — everything else falls back to raw message.content
   // below, unchanged from before this existed.
   const [copyTexts, setCopyTexts] = useState<Record<string, string>>({})
+  // Multiple photos can be queued at once — no multi-select picker, the
+  // user just reopens the attach menu again for each one, so each pick
+  // appends here rather than replacing.
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
+  // A rejected pick (too big) — separate from uploadMutation's own error
+  // state, since this never gets far enough to actually attempt an upload.
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [isItemPickerOpen, setIsItemPickerOpen] = useState(false)
+  // Saved items picked via the attach menu, waiting to go out with the next
+  // message — full Item objects (not just ids) so the compact preview
+  // cards can render immediately with no extra fetch. Same "reopen the
+  // menu again" pattern as pendingAttachments — no multi-select UI.
+  const [pendingItems, setPendingItems] = useState<Item[]>([])
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
 
   function handleSaveStatusChange(messageId: string, status: SaveStatus) {
     setSaveStatuses((current) => ({ ...current, [messageId]: status }))
@@ -112,6 +186,52 @@ function Chat() {
       }
       return { ...current, [messageId]: text }
     })
+  }
+
+  // A single mutation instance handling however many uploads are in
+  // flight at once — each call is independent (its own promise, its own
+  // onSuccess with that call's own variables), so concurrent picks don't
+  // interfere with each other even though isPending/isError below only
+  // reflect the most recently started one.
+  const uploadMutation = useMutation({
+    mutationFn: ({ file }: { file: File; localId: string }) => uploadAttachment(file),
+    onSuccess: (uploaded, { localId }) => {
+      setPendingAttachments((current) =>
+        current.map((attachment) => (attachment.localId === localId ? { ...attachment, uploaded } : attachment)),
+      )
+    },
+  })
+
+  function handleFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    // Same input can be picked again later — without resetting, choosing
+    // the exact same file twice in a row wouldn't fire onChange the second
+    // time.
+    event.target.value = ''
+    if (!file || !ALLOWED_UPLOAD_CONTENT_TYPES.includes(file.type)) return
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      setFileError(`That file's too big — max ${MAX_UPLOAD_SIZE_MB}MB.`)
+      return
+    }
+    setFileError(null)
+    const localId = crypto.randomUUID()
+    setPendingAttachments((current) => [
+      ...current,
+      { localId, previewUrl: URL.createObjectURL(file), filename: file.name, contentType: file.type, uploaded: null },
+    ])
+    uploadMutation.mutate({ file, localId })
+  }
+
+  function handleRemoveAttachment(localId: string) {
+    setPendingAttachments((current) => {
+      const target = current.find((attachment) => attachment.localId === localId)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return current.filter((attachment) => attachment.localId !== localId)
+    })
+  }
+
+  function handleRemoveItem(itemId: string) {
+    setPendingItems((current) => current.filter((item) => item.id !== itemId))
   }
 
   const { data: chat, isLoading } = useQuery({
@@ -170,10 +290,10 @@ function Chat() {
   }, [draft])
 
   const sendMutation = useMutation({
-    mutationFn: async ({ content, skipRouter }: { content: string; skipRouter?: boolean }) => {
+    mutationFn: async ({ content, skipRouter, attachments, itemIds }: SendVars) => {
       const result = isNewChat
-        ? await createChat(tool!.slug, content, skipRouter)
-        : await addMessage(chatId!, content, skipRouter)
+        ? await createChat(tool!.slug, content, skipRouter, attachments, itemIds)
+        : await addMessage(chatId!, content, skipRouter, attachments, itemIds)
       // No real API latency yet (see openai.service.ts) — hold the reply so
       // the fake "generating" stages below get a beat on screen instead of
       // flashing in and out instantly.
@@ -183,7 +303,7 @@ function Chat() {
     // Shows the user's own message immediately rather than waiting on the
     // (now artificially delayed) round trip — reverted below if the router
     // redirects instead of actually saving it to this chat.
-    onMutate: ({ content }: { content: string; skipRouter?: boolean }) => {
+    onMutate: ({ content, attachments, previewUrls, attachedItems }: SendVars) => {
       const previous = queryClient.getQueryData<ChatData>(['chat', chatId])
       if (previous) {
         const optimisticId = `optimistic-${Date.now()}`
@@ -198,6 +318,20 @@ function Chat() {
               isItemCard: false,
               itemTitle: null,
               itemToolSlug: null,
+              // previewUrls (the local blobs, shown instantly) stand in for
+              // the real presigned view urls until onSuccess replaces this
+              // whole optimistic message with the server's actual response.
+              attachments:
+                attachments && attachments.length > 0
+                  ? attachments.map((attachment, index) => ({ ...attachment, url: previewUrls?.[index] ?? '' }))
+                  : null,
+              // attachedItems here are the full Items (see SendVars) — same
+              // shape as the backend's snapshot (itemId/toolSlug/title/data)
+              // once flattened, enough for CompactItemCard to render.
+              attachedItems:
+                attachedItems && attachedItems.length > 0
+                  ? attachedItems.map((item) => ({ itemId: item.id, toolSlug: item.toolSlug, title: item.title, data: item.data }))
+                  : null,
               createdAt: new Date().toISOString(),
             },
           ],
@@ -254,14 +388,39 @@ function Chat() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     })
-    sendMutation.mutate({ content: firstMessage })
+    sendMutation.mutate({
+      content: firstMessage,
+      attachments: firstAttachments,
+      previewUrls: firstPreviewUrls,
+      itemIds: firstItemIds,
+      attachedItems: firstAttachedItems,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // A photo (or item) with no caption still needs some non-empty content
+  // (see AddMessageDto/CreateChatDto's @MinLength(1)) — the attachment
+  // itself is the actual message in that case.
+  function fallbackContent(attachmentCount: number, items: Item[]): string {
+    if (items.length === 1) return `See attached ${items[0].title}.`
+    if (items.length > 1) return 'See attached items.'
+    return attachmentCount > 1 ? 'See attached images.' : 'See attached image.'
+  }
+
   function handleSend() {
-    if (!draft.trim() || !chatId) return
-    sendMutation.mutate({ content: draft })
+    if (!chatId) return
+    if (!draft.trim() && pendingAttachments.length === 0 && pendingItems.length === 0) return
+    const uploaded = pendingAttachments.filter((attachment) => attachment.uploaded)
+    sendMutation.mutate({
+      content: draft.trim() || fallbackContent(uploaded.length, pendingItems),
+      attachments: uploaded.length > 0 ? uploaded.map((attachment) => attachment.uploaded!) : undefined,
+      previewUrls: uploaded.length > 0 ? uploaded.map((attachment) => attachment.previewUrl) : undefined,
+      itemIds: pendingItems.length > 0 ? pendingItems.map((item) => item.id) : undefined,
+      attachedItems: pendingItems.length > 0 ? pendingItems : undefined,
+    })
     setDraft('')
+    setPendingAttachments([])
+    setPendingItems([])
   }
 
   // The router flagged this message as a better fit for another tool, but
@@ -361,9 +520,30 @@ function Chat() {
               // block: 'start' doesn't land the message underneath it.
               className="flex scroll-mt-20 justify-end"
             >
-              <p className="max-w-[80%] rounded-2xl bg-slate-100 px-4 py-2.5 text-sm text-slate-900">
-                {message.content}
-              </p>
+              <div className="flex max-w-[80%] flex-col items-end gap-1.5">
+                {message.attachments?.map((attachment) =>
+                  attachment.contentType.startsWith('image/') ? (
+                    <img
+                      key={attachment.url}
+                      src={attachment.url}
+                      alt={attachment.filename}
+                      className="max-h-64 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <FileAttachmentChip key={attachment.url} filename={attachment.filename} />
+                  ),
+                )}
+                {message.attachedItems && message.attachedItems.length > 0 && (
+                  <div className="flex w-full gap-2 overflow-x-auto">
+                    {message.attachedItems.map((item) => (
+                      <div key={item.itemId} className="w-48 flex-shrink-0">
+                        <CompactItemCard toolSlug={item.toolSlug} title={item.title} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="rounded-2xl bg-slate-100 px-4 py-2.5 text-sm text-slate-900">{message.content}</p>
+              </div>
             </div>
           ) : message.isItemCard ? (
             <ItemCardMessage key={message.id} message={message} chatToolSlug={tool.slug} chatToolName={tool.name} />
@@ -437,6 +617,69 @@ function Chat() {
             className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm"
             onClick={() => textareaRef.current?.focus()}
           >
+            {fileError && <p className="mb-2 text-sm text-red-600">{fileError}</p>}
+
+            {uploadMutation.isError && (
+              <p className="mb-2 text-sm text-red-600">Couldn&rsquo;t upload that — try again.</p>
+            )}
+
+            {/* One horizontal-scrolling row for every pending attachment —
+                photos and items mixed together in pick order. There's no
+                multi-select in the attach menu; adding more than one of
+                either means reopening it again, so this row is what lets
+                several queued attachments stay visible (and individually
+                removable) side by side instead of only showing the last
+                one picked. */}
+            {(pendingAttachments.length > 0 || pendingItems.length > 0) && (
+              // pt-2/pr-2: an overflow-x-auto container also clips
+              // vertical/trailing overflow (a CSS quirk — setting only one
+              // axis to auto forces the other off 'visible' too), which was
+              // cropping the remove buttons' negative -top-1.5/-right-1.5
+              // offset. This padding gives them room instead.
+              <div className="-mx-1 mb-2 flex gap-2 overflow-x-auto px-1 pb-1 pt-2" onClick={(event) => event.stopPropagation()}>
+                {pendingAttachments.map((attachment) => (
+                  <div key={attachment.localId} className="relative h-16 flex-shrink-0">
+                    {attachment.contentType.startsWith('image/') ? (
+                      <img
+                        src={attachment.previewUrl}
+                        alt=""
+                        className="h-16 w-16 rounded-xl border border-slate-200 object-cover"
+                      />
+                    ) : (
+                      <FileAttachmentChip filename={attachment.filename} compact />
+                    )}
+                    {!attachment.uploaded && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                        <Loader2 className="h-5 w-5 animate-spin text-white" strokeWidth={1.75} />
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(attachment.localId)}
+                      aria-label="Remove attachment"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white"
+                    >
+                      <X className="h-3 w-3" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
+
+                {pendingItems.map((item) => (
+                  <div key={item.id} className="relative w-44 flex-shrink-0">
+                    <CompactItemCard toolSlug={item.toolSlug} title={item.title} compact />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveItem(item.id)}
+                      aria-label="Remove item"
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white"
+                    >
+                      <X className="h-3 w-3" strokeWidth={2.5} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <textarea
               ref={textareaRef}
               value={draft}
@@ -449,13 +692,29 @@ function Chat() {
               className="w-full resize-none overflow-y-auto bg-transparent text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
             />
             <div className="mt-2 flex items-center justify-between">
+              {/* Photos stays image-only (its own input's accept="image/*"
+                  below); Files opens a separate input accepting documents
+                  too (see ALLOWED_UPLOAD_FILE_EXTENSIONS). Items opens the
+                  picker sheet below. */}
               <AttachmentMenu
                 triggerClassName="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500"
                 iconClassName="h-4 w-4"
+                groups={[
+                  [
+                    { label: 'Camera', icon: Camera, onClick: () => cameraInputRef.current?.click() },
+                    { label: 'Photos', icon: ImageIcon, onClick: () => fileInputRef.current?.click() },
+                    { label: 'Files', icon: FileIcon, onClick: () => documentInputRef.current?.click() },
+                    { label: 'Items', icon: Layers, onClick: () => setIsItemPickerOpen(true) },
+                  ],
+                ]}
               />
               <button
                 type="button"
-                disabled={!draft.trim() || sendMutation.isPending}
+                disabled={
+                  (!draft.trim() && pendingAttachments.length === 0 && pendingItems.length === 0) ||
+                  pendingAttachments.some((attachment) => !attachment.uploaded) ||
+                  sendMutation.isPending
+                }
                 onClick={(event) => {
                   event.stopPropagation()
                   handleSend()
@@ -469,6 +728,36 @@ function Chat() {
           </div>
         )}
       </div>
+
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={handleFilePicked}
+        className="hidden"
+      />
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFilePicked} className="hidden" />
+      <input
+        ref={documentInputRef}
+        type="file"
+        accept={ALLOWED_UPLOAD_FILE_EXTENSIONS}
+        onChange={handleFilePicked}
+        className="hidden"
+      />
+
+      {isItemPickerOpen && (
+        <ItemPickerSheet
+          onClose={() => setIsItemPickerOpen(false)}
+          onSelect={(item) => {
+            // Ignore a repeat pick of the same item rather than showing a
+            // duplicate chip — no multi-select, but re-picking one already
+            // queued isn't a meaningful second attachment.
+            setPendingItems((current) => (current.some((existing) => existing.id === item.id) ? current : [...current, item]))
+            setIsItemPickerOpen(false)
+          }}
+        />
+      )}
     </main>
   )
 }

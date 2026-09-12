@@ -1,15 +1,41 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowUp, ChevronRight, ChevronUp, Minimize2, Plus, Sparkles, Star, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowUp,
+  Camera,
+  ChevronRight,
+  ChevronUp,
+  File as FileIcon,
+  Image as ImageIcon,
+  Layers,
+  Loader2,
+  Minimize2,
+  Sparkles,
+  Star,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { getTool, type ComposeOption } from '../tools/registry'
 import { isToolSaved, toggleSavedTool } from '../lib/savedTools'
 import { getChatsForTool } from '../lib/chats'
 import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { generateContent } from '../lib/generate'
+import {
+  ALLOWED_UPLOAD_CONTENT_TYPES,
+  ALLOWED_UPLOAD_FILE_EXTENSIONS,
+  MAX_UPLOAD_SIZE_BYTES,
+  uploadAttachment,
+  type UploadedAttachment,
+} from '../lib/uploads'
 import { getItemView } from '../tools/itemViews'
 import ItemDetailModal from '../components/ItemDetailModal'
+import ItemPickerSheet from '../components/ItemPickerSheet'
+import CompactItemCard from '../components/CompactItemCard'
+import FileAttachmentChip from '../components/FileAttachmentChip'
 import OptionsMenu from '../components/OptionsMenu'
+import AttachmentMenu from '../components/AttachmentMenu'
 import Skeleton from '../components/Skeleton'
 import ToolNotice from '../components/ToolNotice'
 import { useAuth } from '../hooks/useAuth'
@@ -17,6 +43,20 @@ import { useKeyboardInset } from '../hooks/useKeyboardInset'
 
 const tabs = ['Items', 'Chats', 'Examples'] as const
 type Tab = (typeof tabs)[number]
+const MAX_UPLOAD_SIZE_MB = MAX_UPLOAD_SIZE_BYTES / 1024 / 1024
+
+// One local id per pending upload — see Chat.tsx's identical type for why
+// (lets several files queue and upload independently, no multi-select).
+// filename/contentType are captured at pick time so the pending chip knows
+// whether to show an image thumbnail or a file icon before the upload
+// itself has even finished.
+interface PendingAttachment {
+  localId: string
+  previewUrl: string
+  filename: string
+  contentType: string
+  uploaded: UploadedAttachment | null
+}
 
 // These tools' items carry a lot more per-card content (genre, summary,
 // rating) than a word-helper item — cramped into 2 columns it clips
@@ -32,6 +72,7 @@ const DENSE_ITEM_TOOLS = new Set([
   'diet',
   'self-care',
   'tech',
+  'maths-solver',
   'politics',
   'home',
   'car',
@@ -63,6 +104,22 @@ function ToolDashboard() {
   const [isComposeMenuOpen, setIsComposeMenuOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedItem, setSelectedItem] = useState<Item | null>(null)
+  // Saved items picked via the attach menu, waiting to go out with the
+  // next message — see Chat.tsx's identical pendingItems for why these are
+  // full Items, not just ids. No multi-select in the picker; more than one
+  // means reopening the menu again, same as pendingAttachments below.
+  const [pendingItems, setPendingItems] = useState<Item[]>([])
+  // Only relevant for a real chat tool — a hideChatsTab tool's compose
+  // sheet only ever calls generateMutation (see handleSend), and /generate
+  // doesn't accept attachments (see lib/generate.ts).
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([])
+  // A rejected pick (too big) — separate from uploadMutation's own error
+  // state, since this never gets far enough to actually attempt an upload.
+  const [fileError, setFileError] = useState<string | null>(null)
+  const [isItemPickerOpen, setIsItemPickerOpen] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
   const itemsGridClassName =
     tool && DENSE_ITEM_TOOLS.has(tool.slug) ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'
   const visibleTabs = tool?.hideChatsTab ? tabs.filter((label) => label !== 'Chats') : tabs
@@ -127,23 +184,100 @@ function ToolDashboard() {
     handleOpenCompose()
   }
 
+  // A single mutation instance handling however many uploads are in
+  // flight at once — see Chat.tsx's identical uploadMutation for why this
+  // is safe despite isPending/isError only reflecting the latest call.
+  const uploadMutation = useMutation({
+    mutationFn: ({ file }: { file: File; localId: string }) => uploadAttachment(file),
+    onSuccess: (uploaded, { localId }) => {
+      setPendingAttachments((current) =>
+        current.map((attachment) => (attachment.localId === localId ? { ...attachment, uploaded } : attachment)),
+      )
+    },
+  })
+
+  function handleFilePicked(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    // Same input can be picked again later — without resetting, choosing
+    // the exact same file twice in a row wouldn't fire onChange the second
+    // time.
+    event.target.value = ''
+    if (!file || !ALLOWED_UPLOAD_CONTENT_TYPES.includes(file.type)) return
+    if (file.size > MAX_UPLOAD_SIZE_BYTES) {
+      setFileError(`That file's too big — max ${MAX_UPLOAD_SIZE_MB}MB.`)
+      return
+    }
+    setFileError(null)
+    const localId = crypto.randomUUID()
+    setPendingAttachments((current) => [
+      ...current,
+      { localId, previewUrl: URL.createObjectURL(file), filename: file.name, contentType: file.type, uploaded: null },
+    ])
+    uploadMutation.mutate({ file, localId })
+  }
+
+  function handleRemoveAttachment(localId: string) {
+    setPendingAttachments((current) => {
+      const target = current.find((attachment) => attachment.localId === localId)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return current.filter((attachment) => attachment.localId !== localId)
+    })
+  }
+
+  function handleRemoveItem(itemId: string) {
+    setPendingItems((current) => current.filter((item) => item.id !== itemId))
+  }
+
+  // A photo (or item) with no caption still needs some non-empty content
+  // (see AddMessageDto/CreateChatDto's @MinLength(1)) — the attachment
+  // itself is the actual message in that case.
+  function fallbackContent(attachmentCount: number, items: Item[]): string {
+    if (items.length === 1) return `See attached ${items[0].title}.`
+    if (items.length > 1) return 'See attached items.'
+    return attachmentCount > 1 ? 'See attached images.' : 'See attached image.'
+  }
+
   function handleSend() {
-    if (!message.trim() || !tool) return
+    if (!tool) return
     if (tool.hideChatsTab) {
       // No chat thread for this tool — the compose sheet only ever opens
       // via the "Generate with AI" option (see handleComposeOption), so
       // sending here always means "generate note content", never a chat.
+      // No attachment UI is shown in this branch (see the compose sheet
+      // below) since /generate doesn't accept one.
+      if (!message.trim()) return
       generateMutation.mutate(message)
       return
     }
+    if (!message.trim() && pendingAttachments.length === 0 && pendingItems.length === 0) return
+    const uploaded = pendingAttachments.filter((attachment) => attachment.uploaded)
     // The chat doesn't exist yet — Chat.tsx creates it (and shows the
     // normal generating-reply UI) as soon as it lands on "new" with this
     // message, rather than this page waiting on it itself.
-    navigate(`/tools/${tool.slug}/chats/new`, { state: { firstMessage: message } })
+    navigate(`/tools/${tool.slug}/chats/new`, {
+      state: {
+        // A photo (or item) with no caption still needs some non-empty
+        // content (see AddMessageDto/CreateChatDto's @MinLength(1)).
+        firstMessage: message.trim() || fallbackContent(uploaded.length, pendingItems),
+        firstAttachments: uploaded.length > 0 ? uploaded.map((attachment) => attachment.uploaded!) : undefined,
+        // Same blob urls Chat.tsx's own optimistic bubble uses — client-side
+        // navigation keeps them valid (no full page reload happens), so the
+        // first message can show real thumbnails immediately instead of a
+        // broken image until the server's presigned urls land.
+        firstPreviewUrls: uploaded.length > 0 ? uploaded.map((attachment) => attachment.previewUrl) : undefined,
+        firstItemIds: pendingItems.length > 0 ? pendingItems.map((item) => item.id) : undefined,
+        firstAttachedItems: pendingItems.length > 0 ? pendingItems : undefined,
+      },
+    })
+    setPendingAttachments([])
+    setPendingItems([])
   }
 
   return (
-    <main className="px-4 py-6">
+    // pb-40 — the compose FAB is fixed (bottom-20 + its own ~56px height),
+    // so it doesn't reserve space in flow; without this, the last row of
+    // the Items grid ends up sitting underneath it instead of above it.
+    <main className="px-4 pb-40 pt-6">
       <div className="flex items-center gap-3">
         <button type="button" onClick={() => navigate('/')} aria-label="Back to home" className="text-2xl text-slate-900">
           ←
@@ -396,18 +530,93 @@ function ToolDashboard() {
             <p className="px-4 text-sm text-red-600">Couldn&rsquo;t generate that — try again.</p>
           )}
 
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
-            <button
-              type="button"
-              aria-label="Attach an image"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500"
-            >
-              <Plus className="h-5 w-5" strokeWidth={1.75} />
-            </button>
+          {fileError && <p className="px-4 text-sm text-red-600">{fileError}</p>}
+
+          {uploadMutation.isError && (
+            <p className="px-4 text-sm text-red-600">Couldn&rsquo;t upload that — try again.</p>
+          )}
+
+          {/* One horizontal-scrolling row for every pending attachment —
+              see Chat.tsx's identical row for why (no multi-select, so
+              several queued photos/items stay visible side by side).
+              pt-2/pb-1: an overflow-x-auto container also clips vertical
+              overflow (setting only one axis to auto forces the other off
+              'visible' too), which was cropping the remove buttons' own
+              negative -top-1.5/-right-1.5 offset. */}
+          {(pendingAttachments.length > 0 || pendingItems.length > 0) && (
+            <div className="flex gap-2 overflow-x-auto px-4 pb-1 pt-2">
+              {pendingAttachments.map((attachment) => (
+                <div key={attachment.localId} className="relative h-16 flex-shrink-0">
+                  {attachment.contentType.startsWith('image/') ? (
+                    <img
+                      src={attachment.previewUrl}
+                      alt=""
+                      className="h-16 w-16 rounded-xl border border-slate-200 object-cover"
+                    />
+                  ) : (
+                    <FileAttachmentChip filename={attachment.filename} compact />
+                  )}
+                  {!attachment.uploaded && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                      <Loader2 className="h-5 w-5 animate-spin text-white" strokeWidth={1.75} />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(attachment.localId)}
+                    aria-label="Remove attachment"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white"
+                  >
+                    <X className="h-3 w-3" strokeWidth={2.5} />
+                  </button>
+                </div>
+              ))}
+
+              {pendingItems.map((item) => (
+                <div key={item.id} className="relative w-44 flex-shrink-0">
+                  <CompactItemCard toolSlug={item.toolSlug} title={item.title} compact />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveItem(item.id)}
+                    aria-label="Remove item"
+                    className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white"
+                  >
+                    <X className="h-3 w-3" strokeWidth={2.5} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between border-slate-100 px-4 py-3">
+            {/* No attach affordance for a hideChatsTab tool's compose sheet
+                — it only ever calls generateMutation (see handleSend), and
+                /generate doesn't accept attachments yet. An empty spacer
+                keeps the send button's position consistent either way. */}
+            {tool?.hideChatsTab ? (
+              <div className="h-10 w-10" />
+            ) : (
+              <AttachmentMenu
+                triggerClassName="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500"
+                iconClassName="h-5 w-5"
+                groups={[
+                  [
+                    { label: 'Camera', icon: Camera, onClick: () => cameraInputRef.current?.click() },
+                    { label: 'Photos', icon: ImageIcon, onClick: () => fileInputRef.current?.click() },
+                    { label: 'Files', icon: FileIcon, onClick: () => documentInputRef.current?.click() },
+                    { label: 'Items', icon: Layers, onClick: () => setIsItemPickerOpen(true) },
+                  ],
+                ]}
+              />
+            )}
 
             <button
               type="button"
-              disabled={!message.trim() || generateMutation.isPending}
+              disabled={
+                (!message.trim() && pendingAttachments.length === 0 && pendingItems.length === 0) ||
+                pendingAttachments.some((attachment) => !attachment.uploaded) ||
+                generateMutation.isPending
+              }
               onClick={handleSend}
               aria-label="Send"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
@@ -415,10 +624,39 @@ function ToolDashboard() {
               <ArrowUp className="h-5 w-5" strokeWidth={2} />
             </button>
           </div>
+
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFilePicked}
+            className="hidden"
+          />
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFilePicked} className="hidden" />
+          <input
+            ref={documentInputRef}
+            type="file"
+            accept={ALLOWED_UPLOAD_FILE_EXTENSIONS}
+            onChange={handleFilePicked}
+            className="hidden"
+          />
         </div>
       )}
 
       {selectedItem && <ItemDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
+
+      {isItemPickerOpen && (
+        <ItemPickerSheet
+          onClose={() => setIsItemPickerOpen(false)}
+          onSelect={(item) => {
+            // Ignore a repeat pick of the same item — see Chat.tsx's
+            // identical guard for why.
+            setPendingItems((current) => (current.some((existing) => existing.id === item.id) ? current : [...current, item]))
+            setIsItemPickerOpen(false)
+          }}
+        />
+      )}
     </main>
   )
 }

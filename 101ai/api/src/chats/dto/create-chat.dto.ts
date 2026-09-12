@@ -1,4 +1,6 @@
-import { IsBoolean, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString, IsUUID, MinLength, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
+import { AttachmentDto } from './attachment.dto';
 
 export class CreateChatDto {
   @IsString()
@@ -11,4 +13,21 @@ export class CreateChatDto {
   @IsOptional()
   @IsBoolean()
   skipRouter?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentDto)
+  attachments?: AttachmentDto[];
+
+  // Saved item(s) to attach alongside this message (see
+  // ItemPickerSheet.tsx) — ChatsService looks each up fresh by id
+  // (ownership-checked) and snapshots it onto the message, same pattern as
+  // createChatFromItem already uses. The frontend has no multi-select UI —
+  // a user attaches more than one by reopening the picker — but the
+  // backend accepts any number here.
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  itemIds?: string[];
 }

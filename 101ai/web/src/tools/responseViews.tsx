@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import DefaultResponse from './default/ResponseView'
 import WordHelperResponse from './word-helper/ResponseView'
+import MathsSolverResponse from './maths-solver/ResponseView'
 import FilmRecommendationsResponse from './film-recommendations/ResponseView'
 import BookRecommendationsResponse from './book-recommendations/ResponseView'
 import MusicRecommendationsResponse from './music-recommendations/ResponseView'
@@ -61,6 +62,7 @@ export interface ResponseViewProps {
 // here falls back to DefaultResponse (plain text).
 const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'word-helper': WordHelperResponse,
+  'maths-solver': MathsSolverResponse,
   'film-recommendations': FilmRecommendationsResponse,
   'book-recommendations': BookRecommendationsResponse,
   'music-recommendations': MusicRecommendationsResponse,

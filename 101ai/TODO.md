@@ -24,8 +24,8 @@
 
 ## Core Product — Tools & Chat
 - [ ] Wire remaining tools to the API — today every tool other than Word Helper returns entirely canned/instant replies (confirmed in code comments), so this is a prerequisite for most of the feature work below, not just a UI gap
-  - [ ] Writer
-  - [ ] Maths Solver
+  - [x] Writer
+  - [x] Maths Solver
   - [x] Science Explainer
   - [x] History Helper
   - [x] Film Recommendations
@@ -63,8 +63,8 @@
   - [ ] Dynamic dashboard tabs (may be different for different tools)
   - [ ] Design item card for different tools
 - [ ] Design different chat UI for different tools (not all might be a chat)
-- [ ] Set up items to be sent to different tools (e.g. Word Helper might save an item called "cake" which can then be sent to the Cooking tool — everything interconnected)
-- [ ] Fix file/image uploader (currently not working — dead "Attach" button in both the chat composer and the dashboard) and roll it out across all chats
+- [x] Set up items to be sent to different tools (e.g. Word Helper might save an item called "cake" which can then be sent to the Cooking tool — everything interconnected)
+- [x] Fix file/image uploader (currently not working — dead "Attach" button in both the chat composer and the dashboard) and roll it out across all chats
 - [ ] Need a "recommend tool" page
 - [ ] Put in place per-plan usage limits (what a user can do based on which package/tier they're on)
 - [ ] Enable actually purchasing Plus/Premium — Pricing page has both permanently disabled ("Coming soon"), so every plan-gated feature (Memory, unlimited items) is currently unreachable by any real user
@@ -111,4 +111,4 @@
 
 ---
 
-**Progress: 26/97 tasks complete (27%)**
+**Progress: 30/98 tasks complete (31%)**

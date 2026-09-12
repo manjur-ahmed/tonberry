@@ -1,11 +1,39 @@
 import { API_URL, getToken } from './api'
+import type { UploadedAttachment } from './uploads'
 
 export type MessageRole = 'user' | 'assistant'
+
+// `url` is always present once a message comes back from the API — the
+// backend resolves a fresh presigned view url from the stored key on every
+// read (see ChatsService.resolveMessageAttachments), never storing one.
+export interface MessageAttachment {
+  key: string
+  contentType: string
+  filename: string
+  url: string
+}
+
+// A snapshot of a saved Item (title/data as they were at send time, not a
+// live reference — see the backend's AttachedItem for why) attached
+// alongside an ordinary user message. Distinct from isItemCard below,
+// which is for a message that IS an item card on its own with no user
+// text (see "Start a chat about this").
+export interface AttachedItem {
+  itemId: string
+  toolSlug: string
+  title: string
+  data: unknown
+}
 
 export interface ChatMessage {
   id: string
   role: MessageRole
   content: string
+  // Image(s) sent with this message — only ever set on a user message.
+  attachments: MessageAttachment[] | null
+  // Saved item(s) sent alongside this message — only ever set on a user
+  // message, and only when picked via the attach menu's "Items" option.
+  attachedItems: AttachedItem[] | null
   // True only for the item card a chat started via "Start a chat about
   // this" is seeded with — Chat.tsx renders that one as a compact item
   // card instead of the tool's normal (long) ResponseView.
@@ -51,10 +79,20 @@ async function authedFetch(path: string, options: RequestInit = {}): Promise<Res
   })
 }
 
-export async function createChat(toolSlug: string, message: string, skipRouter?: boolean): Promise<ChatResult> {
+// attachments are the {key, contentType, filename} already returned by
+// lib/uploads.ts's uploadAttachment — the file itself is long since sitting
+// in S3/MinIO by the time this is called, this just tells the backend
+// which key(s) belong to this message.
+export async function createChat(
+  toolSlug: string,
+  message: string,
+  skipRouter?: boolean,
+  attachments?: UploadedAttachment[],
+  itemIds?: string[],
+): Promise<ChatResult> {
   const response = await authedFetch(`/tools/${toolSlug}/chats`, {
     method: 'POST',
-    body: JSON.stringify({ message, skipRouter }),
+    body: JSON.stringify({ message, skipRouter, attachments, itemIds }),
   })
   if (!response.ok) throw new Error(`Failed to create chat: ${response.status}`)
   return response.json()
@@ -72,10 +110,16 @@ export async function startChatFromItem(itemId: string, targetToolSlug?: string)
   return response.json()
 }
 
-export async function addMessage(chatId: string, content: string, skipRouter?: boolean): Promise<ChatResult> {
+export async function addMessage(
+  chatId: string,
+  content: string,
+  skipRouter?: boolean,
+  attachments?: UploadedAttachment[],
+  itemIds?: string[],
+): Promise<ChatResult> {
   const response = await authedFetch(`/chats/${chatId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ content, skipRouter }),
+    body: JSON.stringify({ content, skipRouter, attachments, itemIds }),
   })
   if (!response.ok) throw new Error(`Failed to send message: ${response.status}`)
   return response.json()

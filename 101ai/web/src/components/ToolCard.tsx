@@ -1,18 +1,6 @@
 import { Link } from 'react-router-dom'
-import type { Tool, ToolCategory } from '../tools/registry'
-
-const categoryStyles: Record<ToolCategory, { icon: string; shadow: string }> = {
-  Education: { icon: 'bg-sky-100', shadow: 'bg-sky-200' },
-  'Entertainment & Media': { icon: 'bg-fuchsia-100', shadow: 'bg-fuchsia-200' },
-  Business: { icon: 'bg-indigo-100', shadow: 'bg-indigo-200' },
-  'Personal Finance': { icon: 'bg-rose-100', shadow: 'bg-rose-200' },
-  Shopping: { icon: 'bg-amber-100', shadow: 'bg-amber-200' },
-  'Health & Wellbeing': { icon: 'bg-emerald-100', shadow: 'bg-emerald-200' },
-  'Food & Cooking': { icon: 'bg-orange-100', shadow: 'bg-orange-200' },
-  'Leisure & Events': { icon: 'bg-cyan-100', shadow: 'bg-cyan-200' },
-  'Politics & Current Affairs': { icon: 'bg-violet-100', shadow: 'bg-violet-200' },
-  'How-to & Fixes': { icon: 'bg-red-100', shadow: 'bg-red-200' },
-}
+import type { Tool } from '../tools/registry'
+import { categoryStyles } from '../tools/registry'
 
 interface ToolCardProps {
   tool: Tool
