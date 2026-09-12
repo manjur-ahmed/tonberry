@@ -13,6 +13,15 @@ export const categories = [
 
 export type ToolCategory = (typeof categories)[number]
 
+// One entry in the compose FAB's menu when a tool opts into
+// multiActionCompose (see Tool below) — 'note' sends the user straight into
+// NoteEditor to start writing; 'chat' opens the existing chat composer
+// sheet, same as the plain single-action FAB does today.
+export interface ComposeOption {
+  label: string
+  action: 'note' | 'chat'
+}
+
 export interface Tool {
   slug: string
   name: string
@@ -30,6 +39,18 @@ export interface Tool {
   // handful of tools where an ongoing back-and-forth actually benefits from
   // it, rather than every tool.
   promoteMemory?: boolean
+  // Hides ToolDashboard's "Chats" tab for a tool that isn't chat-based —
+  // currently just Writer, which works off standalone notes (still saved
+  // as Items) instead of a message thread. Items/Examples are unaffected.
+  hideChatsTab?: boolean
+  // Label on ToolDashboard's compose FAB. Defaults to 'New Chat' when unset.
+  composeLabel?: string
+  // When true, the FAB grows an up-chevron and tapping it opens a stack of
+  // composeOptions pills instead of going straight to the chat composer —
+  // for a tool where "start something new" isn't a single obvious action.
+  multiActionCompose?: boolean
+  // The FAB's menu items when multiActionCompose is true. Ignored otherwise.
+  composeOptions?: ComposeOption[]
 }
 
 // Placeholder catalog — swap these for the real tools once decided.
@@ -40,9 +61,16 @@ export const tools: Tool[] = [
   {
     slug: 'writer',
     name: 'Writer',
-    description: 'Draft or improve a piece of writing.',
+    description: 'Note taking or draft a piece of writing.',
     icon: '✍️',
     category: 'Education',
+    hideChatsTab: true,
+    composeLabel: 'New Note',
+    multiActionCompose: true,
+    composeOptions: [
+      { label: 'New Note', action: 'note' },
+      { label: 'Generate with AI', action: 'chat' },
+    ],
   },
   {
     slug: 'maths-solver',

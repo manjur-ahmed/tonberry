@@ -51,6 +51,17 @@ export class UsageLog {
   @Column({ name: 'cost_usd', type: 'numeric', precision: 12, scale: 8 })
   costUsd: string;
 
+  // The actual user message and the model's raw reply for this call — for
+  // debugging what the AI was actually asked and what it actually said,
+  // since a tool like writer's single-shot /generate endpoint never
+  // persists a Chat/Message the way a normal chat turn does (see
+  // ChatsService). Nullable: historical rows predate this.
+  @Column({ type: 'text', nullable: true })
+  prompt: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  response: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

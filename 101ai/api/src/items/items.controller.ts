@@ -58,6 +58,11 @@ export class ItemsController {
     return this.itemsService.getAllItems(user.id);
   }
 
+  @Get('items/:id')
+  getItem(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.itemsService.getOwnedItem(user.id, id);
+  }
+
   @Delete('items/:id')
   deleteItem(@CurrentUser() user: User, @Param('id') id: string) {
     return this.itemsService.deleteItem(user.id, id);

@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import ToolPage from './pages/ToolPage'
 import ToolDashboard from './pages/ToolDashboard'
 import Chat from './pages/Chat'
+import NoteEditor from './pages/NoteEditor'
 import SignIn from './pages/SignIn'
 import Pricing from './pages/Pricing'
 import Settings from './pages/Settings'
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
       { path: '/tools/:slug', element: <ToolPage /> },
       { path: '/tools/:slug/dashboard', element: <ToolDashboard /> },
       { path: '/tools/:slug/chats/:chatId', element: <Chat /> },
+      { path: '/tools/:slug/notes/:noteId', element: <NoteEditor /> },
       { path: '/sign-in', element: <SignIn /> },
       { path: '/pricing', element: <Pricing /> },
       { path: '/country', element: <Country /> },

@@ -27,6 +27,7 @@ import EventPlannerItemView from './event-planner/ItemView'
 import AdCreatorItemView from './ad-creator/ItemView'
 import CareerPlannerItemView from './career-planner/ItemView'
 import BudgetPlannerItemView from './budget-planner/ItemView'
+import WriterItemView from './writer/ItemView'
 
 export interface ItemViewProps {
   title: string
@@ -63,6 +64,7 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'ad-creator': AdCreatorItemView,
   'career-planner': CareerPlannerItemView,
   'budget-planner': BudgetPlannerItemView,
+  'writer': WriterItemView,
 }
 
 export function getItemView(slug: string): ComponentType<ItemViewProps> {

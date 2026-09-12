@@ -14,6 +14,11 @@ export interface RecordUsageParams {
   completionTokens: number;
   totalTokens: number;
   cachedTokens?: number;
+  // The raw user message and model reply for this call — see
+  // UsageLog.prompt/response for why this is the only place some of these
+  // (e.g. writer's /generate calls) ever get recorded at all.
+  prompt?: string;
+  response?: string;
 }
 
 @Injectable()
@@ -43,6 +48,8 @@ export class UsageLogsService {
         totalTokens: params.totalTokens,
         cachedTokens: params.cachedTokens ?? 0,
         costUsd: costUsd.toFixed(8),
+        prompt: params.prompt ?? null,
+        response: params.response ?? null,
       });
       await this.usageLogsRepository.save(log);
     } catch (error) {

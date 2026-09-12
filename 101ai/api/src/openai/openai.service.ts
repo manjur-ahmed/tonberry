@@ -107,6 +107,8 @@ export class OpenAiService {
           completionTokens: usage.completion_tokens,
           totalTokens: usage.total_tokens,
           cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+          prompt: params.message,
+          response: content,
         });
       }
 

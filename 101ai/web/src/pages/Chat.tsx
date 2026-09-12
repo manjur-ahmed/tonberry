@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Brain, Info, Plus } from 'lucide-react'
+import { ArrowDown, ArrowUp, Brain, Info } from 'lucide-react'
 import { getTool } from '../tools/registry'
+import AttachmentMenu from '../components/AttachmentMenu'
 import { useAuth } from '../hooks/useAuth'
 import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage } from '../lib/chats'
 import { delay } from '../lib/delay'
@@ -448,14 +449,10 @@ function Chat() {
               className="w-full resize-none overflow-y-auto bg-transparent text-base text-slate-900 placeholder:text-slate-400 focus:outline-none"
             />
             <div className="mt-2 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={(event) => event.stopPropagation()}
-                aria-label="Attach an image"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500"
-              >
-                <Plus className="h-4 w-4" strokeWidth={1.75} />
-              </button>
+              <AttachmentMenu
+                triggerClassName="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500"
+                iconClassName="h-4 w-4"
+              />
               <button
                 type="button"
                 disabled={!draft.trim() || sendMutation.isPending}

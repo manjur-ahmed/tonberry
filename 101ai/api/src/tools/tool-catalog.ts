@@ -12,7 +12,7 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
   {
     slug: 'writer',
     name: 'Writer',
-    description: 'Draft or improve a piece of writing.',
+    description: 'Note taking or draft a piece of writing.',
   },
   {
     slug: 'maths-solver',

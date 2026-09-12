@@ -1053,6 +1053,21 @@ function buildStepGuideTask(
     .join(' ');
 }
 
+// No 'kind' escape hatch — see the comment on the writer entry below for
+// why this tool doesn't need the "chat" branch every other schema here has.
+const WRITER_SCHEMA: ResponseSchema = {
+  name: 'writer_draft',
+  schema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      content: { type: 'string' },
+    },
+    required: ['title', 'content'],
+    additionalProperties: false,
+  },
+};
+
 const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   'word-helper': {
     model: 'gpt-4o-mini',
@@ -1384,6 +1399,33 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       "Typical cost categories, their usual names, and the currency all vary by country (e.g. Council Tax in the UK vs. property tax and HOA fees in the US) — if the user's country is given below, use its currency and typical local category names rather than defaulting to assumptions from any one country.",
     ].join(' '),
     responseSchema: BUDGET_PLAN_SCHEMA,
+  },
+  // No 'kind' chat escape hatch, unlike every other tool here — this is
+  // never reached through a back-and-forth chat thread. It's called once
+  // per generate, straight from a note (see OpenAiController.generate), so
+  // there's no follow-up turn to ask a clarifying question on and no
+  // "hi"/small-talk case to special-case around.
+  //
+  // Structured (title + content), not plain text — a plain-text version of
+  // this asked the model in prose not to include a conversational preamble
+  // ("Here's a paragraph about...") and derived a title client-side from
+  // whatever the first line turned out to be, which reliably produced bad
+  // titles (a preamble sentence, or a raw "- " bullet marker, verbatim) once
+  // the model didn't follow that instruction. Splitting title/content into
+  // separate required schema fields is a much stronger signal than a prose
+  // instruction: the model has to decide what's title-shaped and what's
+  // content-shaped rather than just writing prose and hoping the first line
+  // reads like a title.
+  writer: {
+    model: 'gpt-4o-mini',
+    task: [
+      "You help the user draft or improve a piece of writing for a note they're working on — a paragraph, a section, or a short passage, based on what they ask for.",
+      'content is the passage itself, ready to use as-is. Begin directly with the actual first word of the piece — never a conversational preamble or meta-commentary describing what you\'re about to write (e.g. never "Here\'s a paragraph about...", "Sure, here you go:", or similar framing). Match whatever tone, length, and style their request implies.',
+      'title is a short, plain title for this specific piece — a few words, written the way a document title or heading would read. Never just the content\'s opening words or first line repeated verbatim, and never carry over formatting from the content (e.g. a "- " bullet marker) into the title.',
+      "There's no way for them to reply from here, so don't ask a clarifying question — if something is left unspecified, make a reasonable judgement call and write the best version of what they asked for.",
+      "A previous turn, if present, is this SAME note's own current title and content (as JSON) — not a past conversation, just its state right now. When it's there, the user is asking you to revise or continue that specific note, not start a new one: actually read what it currently says, work out what their instruction wants changed about it, and return the COMPLETE updated title and content reflecting that change — never just the new piece in isolation, and never something unrelated to what the note is actually about. If there's no previous turn, you're starting a brand-new note from scratch.",
+    ].join(' '),
+    responseSchema: WRITER_SCHEMA,
   },
 };
 

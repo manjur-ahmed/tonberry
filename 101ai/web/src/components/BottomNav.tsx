@@ -26,7 +26,7 @@ function BottomNav() {
   ]
 
   return (
-    <nav className="sticky bottom-0 flex border-t border-slate-200 bg-white/90 backdrop-blur">
+    <nav className="sticky bottom-0 z-40 flex border-t border-slate-200 bg-white/90 backdrop-blur">
       {tabs.map((tab) => (
         <Link
           key={tab.label}

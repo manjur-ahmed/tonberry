@@ -22,6 +22,27 @@ export interface TopicItemData {
   sections: TopicSection[];
 }
 
+// Writer notes' data.body (see NoteEditor.tsx) can run far longer than any
+// other tool's structured reply — the list endpoints only need enough for
+// a one-line preview (see WriterItemView), so this keeps the full note text
+// from shipping over the wire every time the Items tab loads. getOwnedItem
+// (used when actually opening a note to edit) is untouched — this only
+// applies to the two list methods below. Scoped to just the writer tool for
+// now rather than a generic per-tool truncation mechanism.
+const LIST_BODY_PREVIEW_LENGTH = 200;
+
+function truncateBodyForList(item: Item): Item {
+  if (item.toolSlug !== 'writer') return item;
+  const data = item.data as { body?: unknown } | null;
+  if (!data || typeof data.body !== 'string' || data.body.length <= LIST_BODY_PREVIEW_LENGTH) {
+    return item;
+  }
+  return {
+    ...item,
+    data: { ...data, body: `${data.body.slice(0, LIST_BODY_PREVIEW_LENGTH)}…` },
+  };
+}
+
 @Injectable()
 export class ItemsService {
   constructor(
@@ -133,18 +154,20 @@ export class ItemsService {
     return this.itemsRepository.save(existing);
   }
 
-  getItemsForTool(userId: string, toolSlug: string): Promise<Item[]> {
-    return this.itemsRepository.find({
+  async getItemsForTool(userId: string, toolSlug: string): Promise<Item[]> {
+    const items = await this.itemsRepository.find({
       where: { userId, toolSlug },
       order: { updatedAt: 'DESC' },
     });
+    return items.map(truncateBodyForList);
   }
 
-  getAllItems(userId: string): Promise<Item[]> {
-    return this.itemsRepository.find({
+  async getAllItems(userId: string): Promise<Item[]> {
+    const items = await this.itemsRepository.find({
       where: { userId },
       order: { updatedAt: 'DESC' },
     });
+    return items.map(truncateBodyForList);
   }
 
   async deleteItem(userId: string, itemId: string): Promise<void> {

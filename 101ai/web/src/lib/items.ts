@@ -97,6 +97,12 @@ export async function getAllItems(): Promise<Item[]> {
   return response.json()
 }
 
+export async function getItem(id: string): Promise<Item> {
+  const response = await authedFetch(`/items/${id}`)
+  if (!response.ok) throw new Error(`Failed to load item: ${response.status}`)
+  return response.json()
+}
+
 export async function deleteItem(id: string): Promise<void> {
   const response = await authedFetch(`/items/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(`Failed to delete item: ${response.status}`)
