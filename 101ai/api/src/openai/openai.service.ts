@@ -18,8 +18,88 @@ const MAX_COMPLETION_TOKENS = 2500;
 // app produces today.
 const MAX_HISTORY_MESSAGES = 20;
 
+// Cheap, fast model for the small auxiliary calls below (route-intent
+// extraction) — never needs the main chat model's capability, and running
+// it there would just cost more for no benefit.
+const AUX_MODEL = 'gpt-4o-mini';
+
 const PLACEHOLDER_REPLY =
   "This is a placeholder response — real AI replies aren't wired up yet.";
+
+const ROUTE_INTENT_SYSTEM_PROMPT =
+  'You help interpret a walking-route request. You never invent the route ' +
+  "itself — that's computed for real afterward by a mapping service. " +
+  'Decide: (1) "kind" — "route" if there\'s enough to act on: either a ' +
+  'walking distance/step target for a loop, or a named destination for a ' +
+  'point-to-point walk, AND one of: a named starting location, the app ' +
+  'already knows the user\'s current location, OR they\'re asking which ' +
+  'stop/station to start from (see "startCategory" below — this counts ' +
+  'as "route" too, even with no location named and no GPS, since the app ' +
+  'itself finds the starting point in that case). "chat" otherwise — a ' +
+  'greeting, small talk, or genuinely missing all three of those. For ' +
+  '"chat", write a short, warm reply in "reply" (asking for a location/' +
+  "distance if that's what's missing) and leave every other field null — " +
+  'never write a "chat" reply that describes checking, finding, or ' +
+  'looking something up: nothing runs unless "kind" is "route", so a ' +
+  '"chat" reply must never claim to be about to do real work. (2) "mode" ' +
+  '— "point_to_point" if a specific named ' +
+  'destination is given (e.g. "walk to the train station"), else "loop" ' +
+  '(return to the start, e.g. "walk 3000 steps around the block"). (3) ' +
+  '"targetSteps" — a step count, used to size either a loop or how much ' +
+  'to pad out a point-to-point walk. A bare number, with or without "k" ' +
+  'or "steps" (e.g. "5k", "5k steps", "5000", "a 5k route") means STEPS, ' +
+  'not kilometers — "5k" is exactly 5000 steps, never converted as a ' +
+  'distance. Only convert to steps when a real distance unit is stated ' +
+  '(e.g. "2km", "1.5 miles" — convert at ~1,300 steps/km). The number can ' +
+  'appear anywhere in the sentence, not just at the start — e.g. "which ' +
+  'stop should I use to get 2.5k steps in", "I need 2k steps to the tram ' +
+  'stop" both mean targetSteps 2500/2000; always extract it whenever a ' +
+  'step count or "Nk" appears, even mid-sentence or after other requests ' +
+  'in the same message. (4) ' +
+  '"startLocationName" — a named starting place ' +
+  'if one is mentioned (e.g. "from Dudley town centre"), else null (means ' +
+  'use their current location). (5) "destinationName" — the named ' +
+  'destination for "point_to_point", else null. (6) "startCategory" — ' +
+  'ONLY when the user is asking which transit stop/station to use as a ' +
+  'starting point rather than naming one themselves (e.g. "which tram ' +
+  'stop should I get off at to walk to work", "what bus stop should I ' +
+  'start from"): a short category ("tram stop", "train station", "bus ' +
+  'stop", "subway station"), and leave "startLocationName" null — never ' +
+  'invent or guess a SPECIFIC real stop/station name yourself here (e.g. ' +
+  'never answer with "startLocationName": "Lodge Road" for a question ' +
+  'like this), since you have no way to know which real one is actually ' +
+  'the right walking distance away; the app finds and checks real ' +
+  'candidates for this instead. null when the user already named a ' +
+  'specific start or is just using their current location. (7) ' +
+  '"nearestOnly" — true when the user just wants the NEAREST/closest ' +
+  'stop/station (with "startCategory" set) and to be told its real ' +
+  'distance, WITHOUT giving a target distance of their own (e.g. "steps ' +
+  'to the nearest tram stop", "how far is the closest bus stop", "find ' +
+  'the nearest tram stop and how many steps it is") — in this case leave ' +
+  '"targetSteps" null and do NOT ask them for a distance in "reply"; ' +
+  'true here is itself enough to act on. false/omit whenever a distance ' +
+  'is given or implied, or "startCategory" isn\'t set.\n\n' +
+  'CONTINUING A PREVIOUS ROUTE: if the conversation history already has a ' +
+  'route the app found (its reply says "Found a walking loop..." or ' +
+  '"Route to ..."), treat a short follow-up that does NOT name a new ' +
+  'place (e.g. "shorter", "make it longer", "5k instead", "try again", ' +
+  '"less steps") as adjusting THAT SAME route, not starting an unrelated ' +
+  'one — leave "destinationName"/"startLocationName" null so the app ' +
+  'reuses the previous ones, and leave "mode" null too unless they ' +
+  'explicitly ask to switch between a loop and a specific destination. ' +
+  'For a comparative word like "shorter"/"less" or "longer"/"more" with ' +
+  'no exact number, look at the previous reply\'s reported distance/steps ' +
+  'in the history and set "targetSteps" to a concretely smaller (roughly ' +
+  '60% of it) or larger (roughly 160% of it) number — never leave it null ' +
+  'when a comparative word like this is used. Only treat a follow-up as a ' +
+  'genuinely new, unrelated route when it names a different place, a ' +
+  'different starting point, or otherwise clearly abandons the previous ' +
+  'one.\n\n' +
+  'Respond with ONLY a JSON ' +
+  'object: {"kind": "route"|"chat", "reply": string|null, "mode": ' +
+  '"loop"|"point_to_point"|null, "targetSteps": number|null, ' +
+  '"startLocationName": string|null, "destinationName": string|null, ' +
+  '"startCategory": string|null, "nearestOnly": boolean}.';
 
 export interface HistoryMessage {
   role: 'user' | 'assistant';
@@ -85,10 +165,13 @@ export class OpenAiService {
       // unchanged. itemContext (if any) comes first — it's the thing being
       // referenced, `message` is what the user actually wants done with it.
       const hasAttachments =
-        Boolean(params.itemContext) || (params.attachments && params.attachments.length > 0);
+        Boolean(params.itemContext) ||
+        (params.attachments && params.attachments.length > 0);
       const userContent = hasAttachments
         ? [
-            ...(params.itemContext ? [{ type: 'text' as const, text: params.itemContext }] : []),
+            ...(params.itemContext
+              ? [{ type: 'text' as const, text: params.itemContext }]
+              : []),
             { type: 'text' as const, text: params.message },
             ...(params.attachments ?? []).map((attachment) => ({
               type: 'image_url' as const,
@@ -151,4 +234,116 @@ export class OpenAiService {
       );
     }
   }
+
+  // Deliberately separate from generateReply — no tool-config, no history,
+  // no schema shared with any other tool. Used by StepsPlannerService to
+  // interpret *intent* only (loop vs point-to-point, a step target, named
+  // places) — the model never picks coordinates or describes a route it
+  // hasn't seen computed; StepsPlannerService does the real geometry/Routes
+  // API work afterward and builds the reply text itself from those real
+  // numbers. Falls back to a "chat" reply asking the user to rephrase on
+  // any failure, same defensive shape as extractSearchQuery.
+  async extractRouteIntent(
+    message: string,
+    hasGpsLocation: boolean,
+    userId: string,
+    chatId: string,
+    history: HistoryMessage[] = [],
+  ): Promise<RouteIntent> {
+    const fallback: RouteIntent = {
+      kind: 'chat',
+      reply:
+        "Sorry, I didn't catch that — could you rephrase your walking request?",
+      mode: null,
+      targetSteps: null,
+      startLocationName: null,
+      destinationName: null,
+      startCategory: null,
+      nearestOnly: false,
+    };
+    try {
+      const response = await this.client.chat.completions.create({
+        model: AUX_MODEL,
+        messages: [
+          { role: 'system', content: ROUTE_INTENT_SYSTEM_PROMPT },
+          ...history.map((entry) => ({
+            role: entry.role,
+            content: entry.content,
+          })),
+          {
+            role: 'user',
+            content: `The app ${hasGpsLocation ? 'already knows' : 'does NOT know'} the user's current location.\n\nMessage: ${message}`,
+          },
+        ],
+        max_completion_tokens: 150,
+        response_format: { type: 'json_object' },
+      });
+      const raw = response.choices[0]?.message?.content;
+      const usage = response.usage;
+      if (usage) {
+        await this.usageLogs.record({
+          userId,
+          chatId,
+          messageId: null,
+          toolSlug: 'steps-planner',
+          model: AUX_MODEL,
+          promptTokens: usage.prompt_tokens,
+          completionTokens: usage.completion_tokens,
+          totalTokens: usage.total_tokens,
+          cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+        });
+      }
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      const record =
+        parsed && typeof parsed === 'object'
+          ? (parsed as Record<string, unknown>)
+          : {};
+      if (record.kind !== 'route' && record.kind !== 'chat') return fallback;
+      return {
+        kind: record.kind,
+        reply: typeof record.reply === 'string' ? record.reply : fallback.reply,
+        mode:
+          record.mode === 'point_to_point'
+            ? 'point_to_point'
+            : record.mode === 'loop'
+              ? 'loop'
+              : null,
+        targetSteps:
+          typeof record.targetSteps === 'number' ? record.targetSteps : null,
+        startLocationName:
+          typeof record.startLocationName === 'string'
+            ? record.startLocationName
+            : null,
+        destinationName:
+          typeof record.destinationName === 'string'
+            ? record.destinationName
+            : null,
+        startCategory:
+          typeof record.startCategory === 'string'
+            ? record.startCategory
+            : null,
+        nearestOnly: record.nearestOnly === true,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+}
+
+export interface RouteIntent {
+  kind: 'route' | 'chat';
+  reply: string;
+  mode: 'loop' | 'point_to_point' | null;
+  targetSteps: number | null;
+  // Set instead of startLocationName when the user wants the app to
+  // recommend a real stop/station of this category near the destination
+  // (see StepsPlannerService's stop-finding flow) — never a specific
+  // place name the model guessed itself.
+  startCategory: string | null;
+  // Only meaningful alongside startCategory — the user wants the NEAREST
+  // one and its real distance, with no target distance of their own (see
+  // StepsPlannerService's nearest-stop handling).
+  nearestOnly: boolean;
+  startLocationName: string | null;
+  destinationName: string | null;
 }

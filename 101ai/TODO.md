@@ -45,14 +45,14 @@
   - [x] General Health
   - [x] Diet
   - [x] Self Care
-  - [ ] Steps Planner
+  - [x] Steps Planner
   - [x] Gym Planner
   - [x] Cooking
   - [x] Activity Finder
   - [x] Holiday Planning
   - [x] Event Planner
   - [x] Politics & Law
-  - [ ] News
+  - [x] News
   - [x] Home
   - [x] Car
   - [x] DIY

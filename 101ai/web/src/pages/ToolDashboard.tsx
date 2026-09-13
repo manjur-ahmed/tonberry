@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Layers,
   Loader2,
+  MapPin,
   Minimize2,
   Sparkles,
   Star,
@@ -19,7 +20,12 @@ import {
 } from 'lucide-react'
 import { getTool, type ComposeOption } from '../tools/registry'
 import { isToolSaved, toggleSavedTool } from '../lib/savedTools'
-import { getChatsForTool } from '../lib/chats'
+import { getChatsForTool, type GpsLocation } from '../lib/chats'
+import {
+  getCachedGpsLocation,
+  queryGeolocationPermission,
+  setCachedGpsLocation,
+} from '../lib/stepsPlannerLocation'
 import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { generateContent } from '../lib/generate'
 import {
@@ -81,6 +87,10 @@ const DENSE_ITEM_TOOLS = new Set([
   'gym-planner',
   'business-plan',
   'business-research',
+  // A route's static map thumbnail wants real portrait room (see
+  // steps-planner/ItemView.tsx) — cramped into half a 2-column row it'd be
+  // tiny and squashed.
+  'steps-planner',
   'salary-calculator',
   'day-activity',
   'holiday-planning',
@@ -117,6 +127,12 @@ function ToolDashboard() {
   // state, since this never gets far enough to actually attempt an upload.
   const [fileError, setFileError] = useState<string | null>(null)
   const [isItemPickerOpen, setIsItemPickerOpen] = useState(false)
+  // Steps Planner only — see Chat.tsx's identical trio for why. Seeded
+  // from the cached location (if still fresh) so returning within the TTL
+  // skips both the browser prompt and the "Allow location" banner.
+  const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(() => getCachedGpsLocation())
+  const [geolocationDenied, setGeolocationDenied] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
@@ -228,6 +244,57 @@ function ToolDashboard() {
     setPendingItems((current) => current.filter((item) => item.id !== itemId))
   }
 
+  // Steps Planner only — see Chat.tsx's identical handler for why.
+  function handleAllowLocation() {
+    if (!navigator.geolocation) {
+      setGeolocationDenied(true)
+      return
+    }
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = { lat: position.coords.latitude, lng: position.coords.longitude }
+        setIsLocating(false)
+        setGpsLocation(location)
+        setCachedGpsLocation(location)
+      },
+      () => {
+        setIsLocating(false)
+        setGeolocationDenied(true)
+      },
+      // Without an explicit timeout, a browser that never resolves (no GPS,
+      // location services off at the OS level) hangs forever with neither
+      // callback firing — the click just silently does nothing.
+      { timeout: 10000 },
+    )
+  }
+
+  // If the browser already has standing permission (granted on an earlier
+  // visit), fetch a fresh location silently — no banner, no click needed —
+  // instead of waiting for the cached one to go stale. Falls back to
+  // leaving the "Allow location"/cached-location flow alone when
+  // permission is 'prompt', 'denied', or unqueryable (Safari).
+  useEffect(() => {
+    if (tool?.slug !== 'steps-planner' || gpsLocation) return
+    let cancelled = false
+    queryGeolocationPermission().then((state) => {
+      if (cancelled || state !== 'granted') return
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (cancelled) return
+          const location = { lat: position.coords.latitude, lng: position.coords.longitude }
+          setGpsLocation(location)
+          setCachedGpsLocation(location)
+        },
+        () => {},
+        { timeout: 10000 },
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tool?.slug, gpsLocation])
+
   // A photo (or item) with no caption still needs some non-empty content
   // (see AddMessageDto/CreateChatDto's @MinLength(1)) — the attachment
   // itself is the actual message in that case.
@@ -267,6 +334,7 @@ function ToolDashboard() {
         firstPreviewUrls: uploaded.length > 0 ? uploaded.map((attachment) => attachment.previewUrl) : undefined,
         firstItemIds: pendingItems.length > 0 ? pendingItems.map((item) => item.id) : undefined,
         firstAttachedItems: pendingItems.length > 0 ? pendingItems : undefined,
+        firstGpsLocation: gpsLocation ?? undefined,
       },
     })
     setPendingAttachments([])
@@ -523,6 +591,48 @@ function ToolDashboard() {
           {tool?.warning && (
             <div className="px-4">
               <ToolNotice icon={AlertTriangle} message={tool.warning} />
+            </div>
+          )}
+
+          {tool?.slug === 'steps-planner' && !gpsLocation && (
+            <div className="px-4">
+              <ToolNotice
+                icon={MapPin}
+                message={
+                  geolocationDenied ? (
+                    "Couldn't get your location — just name a starting point instead (e.g. \"from Dudley town centre\")."
+                  ) : isLocating ? (
+                    'Getting your location…'
+                  ) : (
+                    <>
+                      Steps Planner needs your location to build a route from where you are.{' '}
+                      <button type="button" onClick={handleAllowLocation} className="underline">
+                        Allow location
+                      </button>
+                    </>
+                  )
+                }
+              />
+            </div>
+          )}
+
+          {tool?.slug === 'steps-planner' && gpsLocation && (
+            <div className="px-4">
+              <ToolNotice
+                icon={MapPin}
+                message={
+                  isLocating ? (
+                    'Updating your location…'
+                  ) : (
+                    <>
+                      Using your saved location ({gpsLocation.lat.toFixed(3)}, {gpsLocation.lng.toFixed(3)}).{' '}
+                      <button type="button" onClick={handleAllowLocation} className="underline">
+                        Update location
+                      </button>
+                    </>
+                  )
+                }
+              />
             </div>
           )}
 

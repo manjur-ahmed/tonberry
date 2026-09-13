@@ -1,14 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Brain, Camera, File as FileIcon, Image as ImageIcon, Info, Layers, Loader2, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Brain, Camera, File as FileIcon, Image as ImageIcon, Info, Layers, Loader2, MapPin, X } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import AttachmentMenu from '../components/AttachmentMenu'
 import ItemPickerSheet from '../components/ItemPickerSheet'
 import CompactItemCard from '../components/CompactItemCard'
 import FileAttachmentChip from '../components/FileAttachmentChip'
 import { useAuth } from '../hooks/useAuth'
-import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage } from '../lib/chats'
+import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage, type GpsLocation } from '../lib/chats'
+import {
+  getCachedGpsLocation,
+  queryGeolocationPermission,
+  setCachedGpsLocation,
+} from '../lib/stepsPlannerLocation'
 import type { Item } from '../lib/items'
 import {
   ALLOWED_UPLOAD_CONTENT_TYPES,
@@ -47,6 +52,9 @@ interface SendVars {
   // the compact cards can render instantly without waiting on the round
   // trip. Same order as itemIds.
   attachedItems?: Item[]
+  // Steps Planner only — the browser's geolocation result (see the
+  // location banner below), sent alongside the message.
+  gpsLocation?: GpsLocation
 }
 
 // One local id per pending upload (assigned at pick time, before the
@@ -125,6 +133,7 @@ function Chat() {
         firstPreviewUrls?: string[]
         firstItemIds?: string[]
         firstAttachedItems?: Item[]
+        firstGpsLocation?: GpsLocation
       } | null)
     : null
   const firstMessage = newChatState?.firstMessage
@@ -132,6 +141,7 @@ function Chat() {
   const firstPreviewUrls = newChatState?.firstPreviewUrls
   const firstItemIds = newChatState?.firstItemIds
   const firstAttachedItems = newChatState?.firstAttachedItems
+  const firstGpsLocation = newChatState?.firstGpsLocation
   const hasStartedNewChatRef = useRef(false)
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const pendingScrollIdRef = useRef<string | null>(null)
@@ -150,6 +160,16 @@ function Chat() {
   // ResponseViewProps) — everything else falls back to raw message.content
   // below, unchanged from before this existed.
   const [copyTexts, setCopyTexts] = useState<Record<string, string>>({})
+  // Steps Planner only (see the location banner below) — null until the
+  // user allows it (or this chat started with one already known, from
+  // ToolDashboard's compose sheet). geolocationDenied hides the banner
+  // after a decline/failure rather than nagging on every render — the
+  // user can still type a named starting location instead.
+  const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(
+    () => firstGpsLocation ?? getCachedGpsLocation(),
+  )
+  const [geolocationDenied, setGeolocationDenied] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
   // Multiple photos can be queued at once — no multi-select picker, the
   // user just reopens the attach menu again for each one, so each pick
   // appends here rather than replacing.
@@ -187,6 +207,63 @@ function Chat() {
       return { ...current, [messageId]: text }
     })
   }
+
+  // Steps Planner only — the browser's own permission prompt does the
+  // actual asking; this just wires the result into state. A denial or a
+  // browser without geolocation support both land in the same
+  // "couldn't get it" bucket — the user can still type a named starting
+  // location instead (see StepsPlannerService's fallback for that case).
+  function handleAllowLocation() {
+    if (!navigator.geolocation) {
+      setGeolocationDenied(true)
+      return
+    }
+    setIsLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const location = { lat: position.coords.latitude, lng: position.coords.longitude }
+        setIsLocating(false)
+        setGpsLocation(location)
+        setCachedGpsLocation(location)
+      },
+      () => {
+        setIsLocating(false)
+        setGeolocationDenied(true)
+      },
+      // Without an explicit timeout, a browser that never resolves (no GPS,
+      // location services off at the OS level) hangs forever with neither
+      // callback firing — the click just silently does nothing.
+      { timeout: 10000 },
+    )
+  }
+
+  // If the browser already has standing permission (granted on an earlier
+  // visit), fetch a fresh location silently — no banner, no click needed —
+  // instead of waiting for the cached one to go stale. Falls back to
+  // leaving the "Allow location"/cached-location flow alone when
+  // permission is 'prompt', 'denied', or unqueryable (Safari). Skipped
+  // once gpsLocation is already set (from cache or this same check) — no
+  // point silently re-fetching on every render.
+  useEffect(() => {
+    if (tool?.slug !== 'steps-planner' || gpsLocation) return
+    let cancelled = false
+    queryGeolocationPermission().then((state) => {
+      if (cancelled || state !== 'granted') return
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (cancelled) return
+          const location = { lat: position.coords.latitude, lng: position.coords.longitude }
+          setGpsLocation(location)
+          setCachedGpsLocation(location)
+        },
+        () => {},
+        { timeout: 10000 },
+      )
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [tool?.slug, gpsLocation])
 
   // A single mutation instance handling however many uploads are in
   // flight at once — each call is independent (its own promise, its own
@@ -290,10 +367,10 @@ function Chat() {
   }, [draft])
 
   const sendMutation = useMutation({
-    mutationFn: async ({ content, skipRouter, attachments, itemIds }: SendVars) => {
+    mutationFn: async ({ content, skipRouter, attachments, itemIds, gpsLocation: sendGpsLocation }: SendVars) => {
       const result = isNewChat
-        ? await createChat(tool!.slug, content, skipRouter, attachments, itemIds)
-        : await addMessage(chatId!, content, skipRouter, attachments, itemIds)
+        ? await createChat(tool!.slug, content, skipRouter, attachments, itemIds, sendGpsLocation)
+        : await addMessage(chatId!, content, skipRouter, attachments, itemIds, sendGpsLocation)
       // No real API latency yet (see openai.service.ts) — hold the reply so
       // the fake "generating" stages below get a beat on screen instead of
       // flashing in and out instantly.
@@ -318,6 +395,14 @@ function Chat() {
               isItemCard: false,
               itemTitle: null,
               itemToolSlug: null,
+              // A user message never carries Steps Planner's real-route
+              // snapshot — only ever set on the assistant's own reply.
+              routeDistanceMeters: null,
+              routeDurationSeconds: null,
+              routeEncodedPolyline: null,
+              routeStartLabel: null,
+              routeDestinationLabel: null,
+              routeThreadId: null,
               // previewUrls (the local blobs, shown instantly) stand in for
               // the real presigned view urls until onSuccess replaces this
               // whole optimistic message with the server's actual response.
@@ -394,6 +479,7 @@ function Chat() {
       previewUrls: firstPreviewUrls,
       itemIds: firstItemIds,
       attachedItems: firstAttachedItems,
+      gpsLocation: firstGpsLocation,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -417,6 +503,7 @@ function Chat() {
       previewUrls: uploaded.length > 0 ? uploaded.map((attachment) => attachment.previewUrl) : undefined,
       itemIds: pendingItems.length > 0 ? pendingItems.map((item) => item.id) : undefined,
       attachedItems: pendingItems.length > 0 ? pendingItems : undefined,
+      gpsLocation: gpsLocation ?? undefined,
     })
     setDraft('')
     setPendingAttachments([])
@@ -556,6 +643,12 @@ function Chat() {
                 messageId={message.id}
                 onSaveStatusChange={(status) => handleSaveStatusChange(message.id, status)}
                 onCopyTextChange={(text) => handleCopyTextChange(message.id, text)}
+                routeDistanceMeters={message.routeDistanceMeters}
+                routeDurationSeconds={message.routeDurationSeconds}
+                routeEncodedPolyline={message.routeEncodedPolyline}
+                routeStartLabel={message.routeStartLabel}
+                routeDestinationLabel={message.routeDestinationLabel}
+                routeThreadId={message.routeThreadId}
               />
               <MessageActions content={copyTexts[message.id] ?? message.content} saveStatus={saveStatuses[message.id]} />
               {itemLimitNoticeMessageId === message.id && <ItemLimitBanner />}
@@ -606,6 +699,44 @@ function Chat() {
                   Enable memory
                 </Link>
               </>
+            }
+          />
+        )}
+
+        {tool.slug === 'steps-planner' && !gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
+          <ToolNotice
+            icon={MapPin}
+            message={
+              geolocationDenied ? (
+                "Couldn't get your location — just name a starting point instead (e.g. \"from Dudley town centre\")."
+              ) : isLocating ? (
+                'Getting your location…'
+              ) : (
+                <>
+                  Steps Planner needs your location to build a route from where you are.{' '}
+                  <button type="button" onClick={handleAllowLocation} className="underline">
+                    Allow location
+                  </button>
+                </>
+              )
+            }
+          />
+        )}
+
+        {tool.slug === 'steps-planner' && gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
+          <ToolNotice
+            icon={MapPin}
+            message={
+              isLocating ? (
+                'Updating your location…'
+              ) : (
+                <>
+                  Using your saved location ({gpsLocation.lat.toFixed(3)}, {gpsLocation.lng.toFixed(3)}).{' '}
+                  <button type="button" onClick={handleAllowLocation} className="underline">
+                    Update location
+                  </button>
+                </>
+              )
             }
           />
         )}

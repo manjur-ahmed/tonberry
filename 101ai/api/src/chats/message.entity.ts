@@ -103,6 +103,41 @@ export class Message {
   @Column({ name: 'attached_items', type: 'jsonb', nullable: true })
   attachedItems: AttachedItem[] | null;
 
+  // A real walking route computed for this specific Steps Planner reply
+  // (see StepsPlannerService.planRoute/GoogleMapsClient) — set directly
+  // from Google's Routes API response, never authored or estimated by the
+  // model, so the distance/duration/path the user sees and saves is always
+  // the real computed route. Only ever set on an ASSISTANT message; null
+  // (not on any other tool, and null on a Steps Planner reply that
+  // couldn't find a route at all — e.g. a clarifying question, or a
+  // real API failure).
+  @Column({ name: 'route_distance_meters', type: 'integer', nullable: true })
+  routeDistanceMeters: number | null;
+
+  @Column({ name: 'route_duration_seconds', type: 'integer', nullable: true })
+  routeDurationSeconds: number | null;
+
+  // Google's polyline-algorithm-encoded path — decoded client-side via the
+  // Maps JavaScript API's geometry library (see steps-planner/ResponseView.tsx)
+  // to draw the real route on a map. Opaque to this app; never parsed here.
+  @Column({ name: 'route_encoded_polyline', type: 'text', nullable: true })
+  routeEncodedPolyline: string | null;
+
+  @Column({ name: 'route_start_label', type: 'varchar', nullable: true })
+  routeStartLabel: string | null;
+
+  @Column({ name: 'route_destination_label', type: 'varchar', nullable: true })
+  routeDestinationLabel: string | null;
+
+  // Shared by every message in the same "tweak this route" conversation
+  // thread (see StepsPlannerService.planRoute's continuation handling) —
+  // lets the frontend update one saved Item across a whole back-and-forth
+  // instead of creating a new one per message. Null for a non-continuation
+  // route (its own thread, keyed by its own message id) or a non-route
+  // reply.
+  @Column({ name: 'route_thread_id', type: 'varchar', nullable: true })
+  routeThreadId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

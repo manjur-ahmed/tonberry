@@ -8,6 +8,7 @@ import { ChatsModule } from './chats/chats.module';
 import { ItemsModule } from './items/items.module';
 import { UsageLogsModule } from './usage-logs/usage-logs.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { NewsModule } from './news/news.module';
 import { User } from './users/user.entity';
 import { Chat } from './chats/chat.entity';
 import { Message } from './chats/message.entity';
@@ -45,6 +46,7 @@ import { UsageLog } from './usage-logs/usage-log.entity';
     ItemsModule,
     UsageLogsModule,
     UploadsModule,
+    NewsModule,
   ],
 })
 export class AppModule {}

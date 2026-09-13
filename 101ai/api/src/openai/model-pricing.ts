@@ -11,6 +11,9 @@ export const MODEL_PRICING: Record<
   // salary-calculator and budget-planner only (see tool-config.ts) — every
   // other tool is on mini.
   'gpt-4o': { inputPer1M: 2.5, outputPer1M: 10.0 },
+  // News's search-query embedding call (see OpenAiService.embedText) — no
+  // output tokens, only ever priced on input.
+  'text-embedding-3-small': { inputPer1M: 0.02, outputPer1M: 0 },
 };
 
 export function calculateCostUsd(

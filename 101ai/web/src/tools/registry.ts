@@ -251,6 +251,8 @@ export const tools: Tool[] = [
     description: 'Plan a walking or step goal.',
     icon: '🚶',
     category: 'Health & Wellbeing',
+    warning:
+      'Routes are generated automatically — always use your own judgement about whether a suggested route is safe for you, especially at night or walking alone.',
   },
   {
     slug: 'gym-planner',
@@ -320,6 +322,8 @@ export const tools: Tool[] = [
     description: 'Get a summary of a news topic.',
     icon: '📰',
     category: 'Politics & Current Affairs',
+    warning:
+      "This isn't a live news feed — answers come from the AI's own knowledge, which has a training cutoff and can be wrong or out of date. Always check a real news source for anything current or important.",
   },
 
   // How-to & Fixes

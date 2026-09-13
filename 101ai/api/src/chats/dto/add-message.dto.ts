@@ -1,6 +1,15 @@
-import { IsArray, IsBoolean, IsOptional, IsString, IsUUID, MinLength, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { AttachmentDto } from './attachment.dto';
+import { GpsLocationDto } from './gps-location.dto';
 
 export class AddMessageDto {
   @IsString()
@@ -30,4 +39,11 @@ export class AddMessageDto {
   @IsArray()
   @IsUUID('4', { each: true })
   itemIds?: string[];
+
+  // The browser's geolocation result, for Steps Planner only (see
+  // StepsPlannerService) — no other tool reads this.
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => GpsLocationDto)
+  gpsLocation?: GpsLocationDto;
 }

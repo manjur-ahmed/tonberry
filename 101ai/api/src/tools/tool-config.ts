@@ -426,6 +426,45 @@ const POLITICS_SCHEMA: ResponseSchema = {
   },
 };
 
+// Almost identical to TOPIC_EXPLAINER_SCHEMA/POLITICS_SCHEMA (see the
+// comment on POLITICS_SCHEMA for why this is its own object) — with one
+// addition, searchKeywords, for the real NewsData.io "further reading"
+// search (see NewsResponse.tsx/NewsClient). Kept separate from topicTitle/
+// sectionHeading — both are meant for DISPLAY (a natural title/heading),
+// not search: tested empirically against the real API, a full sentence-
+// like phrase either matched nothing (NewsData's title-only search is an
+// AND match) or, sent as a loose full-text search instead, pulled in
+// unrelated noise. searchKeywords is the one field meant to be a short,
+// real search query on its own.
+const NEWS_SCHEMA: ResponseSchema = {
+  name: 'news_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+      searchKeywords: { type: ['string', 'null'] },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+      'searchKeywords',
+    ],
+    additionalProperties: false,
+  },
+};
+
 // Shared by science-explainer, history-helper, and politics' task text
 // below — spelled out once so the tools' prompts can't drift out of sync on
 // the part that isn't actually subject-specific. formattingInstruction is
@@ -1300,6 +1339,27 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     ),
     responseSchema: POLITICS_SCHEMA,
   },
+  // Previously a live-search tool backed by GDELT (real fetched articles,
+  // no AI-authored commentary) — reverted to a plain generateReply tool
+  // like everything else here, after GDELT proved unreliable to call from
+  // this dev sandbox (throttling/timeouts on its free tier). That means
+  // answers now come from the model's own training data, not a live feed —
+  // no real current-events guarantee, and no real articles to check a
+  // claim against — so the honesty guardrail below is load-bearing, not
+  // boilerplate, and registry.ts's warning banner says so plainly too.
+  news: {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: [
+      buildTopicExplainerTask(
+        'news or current events',
+        'In sectionBody, wrap important names, organizations, or figures in **double asterisks** to bold them (e.g. **the Bank of England**). Be selective: bold the handful of specifics that matter most, not every proper noun.',
+        "You have no live news feed — only what you already knew as of your training cutoff. Never present something as a current or breaking development; if the topic is genuinely recent or fast-moving, say plainly that your knowledge may be out of date and the user should check a live news source for the latest. Actively try to anchor sectionBody in a real, specific recent event and its date (or month/year, whatever precision you're actually confident about) rather than staying purely general — a vague summary with no concrete anchor is much less useful than one that names what actually happened and roughly when. But never invent a specific-sounding detail (a headline, a quote, an exact figure, an event, a date) you're not actually confident is real — if you don't know a genuine specific one for this topic, say so plainly rather than making one up; a real \"I'm not sure of specifics here\" beats a fabricated-but-confident-sounding one. IMPORTANT — do not confuse \"no country named\" with \"too vague to answer\": if the user's own country is given below, a bare topic like \"the political situation\", \"the economy\", or \"the latest news\" is ALREADY enough to act on — this is the single most common way News gets asked about something, and it is never a reason for `kind: \"chat\"` on its own. Answer for their own country directly (`kind: \"explanation\"`), and say which country explicitly in sectionBody (e.g. \"In the UK, ...\") so it's never ambiguous which one you mean. Reserve `kind: \"chat\"` for an actual greeting/small talk, or a topic that's vague for a reason OTHER than country (e.g. \"tell me something interesting\"). If they've clearly named a different country, a region, or asked for global coverage instead (\"world news\", \"what's happening in Japan\"), answer for that instead of their own.",
+      ),
+      'Also set "searchKeywords" for "explanation" replies (null for "chat") — a short, real search query for a live news search the app runs alongside your answer to find real "further reading" articles, run as an exact-phrase match so it MUST look like real headline wording: 2-3 words, ONE topic only, no filler words ("the", "current", "situation", "latest", "overview"), no year or date, no commas or lists of several things (e.g. "UK politics", "Bank of England interest rates" — not "UK politics, Brexit, Rishi Sunak", not "UK politics 2024", not a full sentence like "Current Political Situation in the UK"). Always include the specific country/place name in it when the topic is about one, since that\'s what makes the real search results relevant rather than generic.',
+    ].join(' '),
+    responseSchema: NEWS_SCHEMA,
+  },
   'business-plan': {
     model: 'gpt-4o-mini',
     usesResidencyContext: true,
@@ -1351,11 +1411,11 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     // lookup-style reply. Every other tool stays on mini.
     model: 'gpt-4o',
     task: [
-      "You help the user solve a maths problem, showing the full working rather than jumping straight to the answer.",
+      'You help the user solve a maths problem, showing the full working rather than jumping straight to the answer.',
       'First decide `kind`: use "solution" once they\'ve actually given you a problem to solve. Use "chat" for greetings, small talk, thanks, or when they haven\'t given you a real problem yet and you need to ask what they\'d like solved — leaving the solution fields null/empty and writing your reply in `reply` instead.',
       'For "solution": leave `reply` null. steps is the ordered working — every real step needed to get from the problem to the answer (don\'t skip arithmetic or algebraic manipulation a student would need to see to follow along), each step focused on one clear operation or piece of reasoning rather than several combined into one. Treat every reply as the CURRENT best explanation given everything asked so far — if they ask you to explain a step more, correct something, or continue, revise the steps around that rather than only describing the new detail in isolation.',
       'answer is the final result stated plainly on its own (e.g. "x = -2 or x = -3", "42") — never left null once kind is "solution".',
-      "Work through the arithmetic and algebra carefully and actually verify your own working — substitute the answer back into the original problem and confirm it holds, or otherwise sanity-check it — rather than pattern-matching to a plausible-looking answer. Getting the final answer wrong is the one thing this tool must never do.",
+      'Work through the arithmetic and algebra carefully and actually verify your own working — substitute the answer back into the original problem and confirm it holds, or otherwise sanity-check it — rather than pattern-matching to a plausible-looking answer. Getting the final answer wrong is the one thing this tool must never do.',
       'problemKey is a short, stable, lowercase-hyphenated id for the CURRENT problem (e.g. "quadratic-x2-5x-6", "fraction-addition") — reuse the exact same one on every reply still about this same problem, only picking a new one when they move on to a genuinely different problem. problemTitle is a short, human-readable description of the problem (e.g. "Solve x² + 5x + 6 = 0") — never leave it null when kind is "solution".',
       "If a photo's attached, that's the problem — read it directly off the image (handwritten or printed) rather than asking them to type it out, and solve what's actually shown. If the photo is unclear or you can't confidently make out part of it, say so specifically (what you can and can't read) rather than guessing at illegible parts.",
     ].join(' '),

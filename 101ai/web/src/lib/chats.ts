@@ -25,6 +25,14 @@ export interface AttachedItem {
   data: unknown
 }
 
+// The browser's geolocation result, for Steps Planner only (see
+// StepsPlannerService) — sent alongside a message the same way an
+// attachment or item id already is.
+export interface GpsLocation {
+  lat: number
+  lng: number
+}
+
 export interface ChatMessage {
   id: string
   role: MessageRole
@@ -34,6 +42,24 @@ export interface ChatMessage {
   // Saved item(s) sent alongside this message — only ever set on a user
   // message, and only when picked via the attach menu's "Items" option.
   attachedItems: AttachedItem[] | null
+  // A real walking route computed for this specific Steps Planner reply —
+  // set directly from Google's Routes API response server-side, never
+  // estimated by the model. Only ever set on an assistant message, and
+  // only for the Steps Planner tool; null on any reply that couldn't find
+  // a route (a clarifying question, or a real API failure). See
+  // steps-planner/ResponseView.tsx.
+  routeDistanceMeters: number | null
+  routeDurationSeconds: number | null
+  routeEncodedPolyline: string | null
+  routeStartLabel: string | null
+  routeDestinationLabel: string | null
+  // Shared by every message in the same "tweak this route" thread (see
+  // StepsPlannerService.planRoute's continuation handling) — used as the
+  // saved Item's dedupKey instead of this message's own id, so tweaking a
+  // route updates one item rather than creating a new one per message.
+  // Null for a route's own first message (its own id is the thread) or a
+  // non-route reply.
+  routeThreadId: string | null
   // True only for the item card a chat started via "Start a chat about
   // this" is seeded with — Chat.tsx renders that one as a compact item
   // card instead of the tool's normal (long) ResponseView.
@@ -89,10 +115,11 @@ export async function createChat(
   skipRouter?: boolean,
   attachments?: UploadedAttachment[],
   itemIds?: string[],
+  gpsLocation?: GpsLocation,
 ): Promise<ChatResult> {
   const response = await authedFetch(`/tools/${toolSlug}/chats`, {
     method: 'POST',
-    body: JSON.stringify({ message, skipRouter, attachments, itemIds }),
+    body: JSON.stringify({ message, skipRouter, attachments, itemIds, gpsLocation }),
   })
   if (!response.ok) throw new Error(`Failed to create chat: ${response.status}`)
   return response.json()
@@ -116,10 +143,11 @@ export async function addMessage(
   skipRouter?: boolean,
   attachments?: UploadedAttachment[],
   itemIds?: string[],
+  gpsLocation?: GpsLocation,
 ): Promise<ChatResult> {
   const response = await authedFetch(`/chats/${chatId}/messages`, {
     method: 'POST',
-    body: JSON.stringify({ content, skipRouter, attachments, itemIds }),
+    body: JSON.stringify({ content, skipRouter, attachments, itemIds, gpsLocation }),
   })
   if (!response.ok) throw new Error(`Failed to send message: ${response.status}`)
   return response.json()

@@ -8,6 +8,19 @@ import { ItemLimitReachedException } from './item-limit-reached.exception';
 // Must match the "5 items per tool" line in web/src/lib/plans.ts.
 const FREE_PLAN_ITEM_LIMIT = 5;
 
+// Real "further reading" articles for a News section (see NewsClient/
+// NewsController) — never authored or paraphrased by the model, so what
+// saves onto the item is always the real title/url NewsData.io returned.
+// Only News ever sets this; every other topic-explainer tool (politics,
+// general-health, ...) just never passes it, kept generic here rather than
+// a News-only parallel of TopicSection/upsertSection.
+export interface NewsArticleSnapshot {
+  title: string;
+  url: string;
+  sourceName: string;
+  publishedAt: string;
+}
+
 // Item.data shape for science-explainer/history-helper — see upsertSection.
 // One item per chat rather than one per reply: a rabbit-hole conversation
 // covering several angles on one broad subject reads back as one document
@@ -15,6 +28,7 @@ const FREE_PLAN_ITEM_LIMIT = 5;
 export interface TopicSection {
   heading: string;
   body: string;
+  articles?: NewsArticleSnapshot[];
 }
 
 export interface TopicItemData {
@@ -115,6 +129,11 @@ export class ItemsService {
       sectionHeading: string;
       sectionBody: string;
       sectionAction: 'new' | 'continue';
+      // News only — see NewsArticleSnapshot. Only ever meaningful on a
+      // 'new' section (a 'continue' appends to an already-settled section,
+      // whose articles from the original search are still the relevant
+      // ones — no re-search happens for a continuation).
+      articles?: NewsArticleSnapshot[];
     },
   ): Promise<Item> {
     const existing = await this.itemsRepository.findOne({
@@ -126,7 +145,11 @@ export class ItemsService {
       const data: TopicItemData = {
         title: params.topicTitle,
         sections: [
-          { heading: params.sectionHeading, body: params.sectionBody },
+          {
+            heading: params.sectionHeading,
+            body: params.sectionBody,
+            articles: params.articles,
+          },
         ],
       };
       const item = this.itemsRepository.create({
@@ -148,6 +171,7 @@ export class ItemsService {
       data.sections.push({
         heading: params.sectionHeading,
         body: params.sectionBody,
+        articles: params.articles,
       });
     }
     existing.data = data;

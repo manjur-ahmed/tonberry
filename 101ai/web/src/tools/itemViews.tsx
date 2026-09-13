@@ -17,6 +17,8 @@ import HomeItemView from './home/ItemView'
 import CarItemView from './car/ItemView'
 import DiyItemView from './diy/ItemView'
 import PoliticsItemView from './politics/ItemView'
+import NewsItemView from './news/ItemView'
+import StepsPlannerItemView from './steps-planner/ItemView'
 import GeneralHealthItemView from './general-health/ItemView'
 import GymPlannerItemView from './gym-planner/ItemView'
 import BusinessPlanItemView from './business-plan/ItemView'
@@ -55,6 +57,8 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'car': CarItemView,
   'diy': DiyItemView,
   'politics': PoliticsItemView,
+  'news': NewsItemView,
+  'steps-planner': StepsPlannerItemView,
   'general-health': GeneralHealthItemView,
   'gym-planner': GymPlannerItemView,
   'business-plan': BusinessPlanItemView,

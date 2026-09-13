@@ -26,6 +26,7 @@ export class ChatsController {
       user.country,
       dto.attachments,
       dto.itemIds,
+      dto.gpsLocation,
     );
   }
 
@@ -56,6 +57,7 @@ export class ChatsController {
       user.country,
       dto.attachments,
       dto.itemIds,
+      dto.gpsLocation,
     );
   }
 

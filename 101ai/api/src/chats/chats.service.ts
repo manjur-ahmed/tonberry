@@ -7,12 +7,26 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Chat } from './chat.entity';
-import { AttachedItem, Message, MessageAttachment, MessageRole } from './message.entity';
+import {
+  AttachedItem,
+  Message,
+  MessageAttachment,
+  MessageRole,
+} from './message.entity';
 import { RouterService } from '../router/router.service';
 import { OpenAiService } from '../openai/openai.service';
 import { ItemsService } from '../items/items.service';
 import { UploadsService } from '../uploads/uploads.service';
+import {
+  PreviousRouteInfo,
+  StepsPlannerService,
+} from '../steps-planner/steps-planner.service';
 import { getToolCatalogEntry } from '../tools/tool-catalog';
+
+interface GpsLocation {
+  lat: number;
+  lng: number;
+}
 
 export type ChatResult =
   { type: 'redirect'; suggestedTool: string } | { type: 'reply'; chat: Chat };
@@ -74,6 +88,7 @@ export class ChatsService {
     private readonly openai: OpenAiService,
     private readonly items: ItemsService,
     private readonly uploads: UploadsService,
+    private readonly stepsPlanner: StepsPlannerService,
   ) {}
 
   private isImageAttachment(attachment: MessageAttachment): boolean {
@@ -97,11 +112,16 @@ export class ChatsService {
   private async resolveAttachmentsForVision(
     attachments?: MessageAttachment[],
   ): Promise<{ url: string; contentType: string }[] | undefined> {
-    const images = (attachments ?? []).filter((attachment) => this.isImageAttachment(attachment));
+    const images = (attachments ?? []).filter((attachment) =>
+      this.isImageAttachment(attachment),
+    );
     if (images.length === 0) return undefined;
     return Promise.all(
       images.map(async (attachment) => ({
-        url: await this.uploads.getObjectAsDataUrl(attachment.key, attachment.contentType),
+        url: await this.uploads.getObjectAsDataUrl(
+          attachment.key,
+          attachment.contentType,
+        ),
         contentType: attachment.contentType,
       })),
     );
@@ -112,13 +132,19 @@ export class ChatsService {
   // it gets is knowing, by filename, that they exist, rather than the
   // attachment silently vanishing from its context. undefined when
   // everything attached is an image (or nothing's attached at all).
-  private describeNonImageAttachments(attachments?: MessageAttachment[]): string | undefined {
-    const files = (attachments ?? []).filter((attachment) => !this.isImageAttachment(attachment));
+  private describeNonImageAttachments(
+    attachments?: MessageAttachment[],
+  ): string | undefined {
+    const files = (attachments ?? []).filter(
+      (attachment) => !this.isImageAttachment(attachment),
+    );
     if (files.length === 0) return undefined;
-    const list = files.map((file) => `- ${file.filename} (${file.contentType})`).join('\n');
+    const list = files
+      .map((file) => `- ${file.filename} (${file.contentType})`)
+      .join('\n');
     return (
       "The user also attached the following file(s). You can't see their " +
-      "contents — treat this only as knowledge that they exist, and ask " +
+      'contents — treat this only as knowledge that they exist, and ask ' +
       "the user to paste the relevant text if you need to know what's " +
       `inside:\n${list}`
     );
@@ -171,6 +197,35 @@ export class ChatsService {
       .join('\n\n---\n\n');
   }
 
+  // The last successful route in this chat, if any — lets a follow-up
+  // message that names no new place ("shorter", "5k route") continue
+  // tweaking that same route instead of StepsPlannerService treating it as
+  // an unrelated new request (see PreviousRouteInfo/planRoute).
+  private findPreviousRoute(messages: Message[]): PreviousRouteInfo | null {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const candidate = messages[i];
+      if (
+        candidate.role === MessageRole.ASSISTANT &&
+        candidate.routeEncodedPolyline &&
+        candidate.routeStartLabel &&
+        candidate.routeDestinationLabel &&
+        candidate.routeDistanceMeters !== null
+      ) {
+        return {
+          threadId: candidate.routeThreadId ?? candidate.id,
+          mode:
+            candidate.routeStartLabel === candidate.routeDestinationLabel
+              ? 'loop'
+              : 'point_to_point',
+          startLabel: candidate.routeStartLabel,
+          destinationLabel: candidate.routeDestinationLabel,
+          distanceMeters: candidate.routeDistanceMeters,
+        };
+      }
+    }
+    return null;
+  }
+
   // Enriches already-saved messages with a fresh presigned view url per
   // attachment, in place, for the response the frontend renders a thumbnail
   // from (see Message.attachments' `url` field) — never persisted, computed
@@ -199,6 +254,7 @@ export class ChatsService {
     userCountry: string | null = null,
     attachments?: MessageAttachment[],
     itemIds?: string[],
+    gpsLocation?: GpsLocation,
   ): Promise<ChatResult> {
     const routerResult = skipRouter
       ? { redirect: false }
@@ -214,20 +270,36 @@ export class ChatsService {
     // itself isn't saved until the reply is already back.
     const chatId = randomUUID();
     const assistantMessageId = randomUUID();
-    const replyContent = await this.openai.generateReply({
-      toolSlug,
-      message: firstMessage,
-      history: [],
-      userId,
-      chatId,
-      messageId: assistantMessageId,
-      userCountry,
-      attachments: await this.resolveAttachmentsForVision(attachments),
-      itemContext: this.combineContext(
-        this.buildItemContext(attachedItems),
-        this.describeNonImageAttachments(attachments),
-      ),
-    });
+    // Steps Planner skips generateReply — a small AI call already happens
+    // inside planRoute (intent extraction only), and the reply text it
+    // returns is built from the real Routes API result, not written by
+    // the model (see StepsPlannerService.planRoute).
+    const routeResult =
+      toolSlug === 'steps-planner'
+        ? await this.stepsPlanner.planRoute(
+            firstMessage,
+            userId,
+            chatId,
+            gpsLocation ?? null,
+            assistantMessageId,
+          )
+        : null;
+    const replyContent = routeResult
+      ? routeResult.replyText
+      : await this.openai.generateReply({
+          toolSlug,
+          message: firstMessage,
+          history: [],
+          userId,
+          chatId,
+          messageId: assistantMessageId,
+          userCountry,
+          attachments: await this.resolveAttachmentsForVision(attachments),
+          itemContext: this.combineContext(
+            this.buildItemContext(attachedItems),
+            this.describeNonImageAttachments(attachments),
+          ),
+        });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     const chat = this.chatsRepository.create({
       id: chatId,
@@ -248,6 +320,12 @@ export class ChatsService {
           role: MessageRole.ASSISTANT,
           content: replyContent,
           createdAt: assistantTimestamp,
+          routeDistanceMeters: routeResult?.distanceMeters ?? null,
+          routeDurationSeconds: routeResult?.durationSeconds ?? null,
+          routeEncodedPolyline: routeResult?.encodedPolyline ?? null,
+          routeStartLabel: routeResult?.startLabel ?? null,
+          routeDestinationLabel: routeResult?.destinationLabel ?? null,
+          routeThreadId: routeResult?.routeThreadId ?? null,
         },
       ],
     });
@@ -317,6 +395,7 @@ export class ChatsService {
     userCountry: string | null = null,
     attachments?: MessageAttachment[],
     itemIds?: string[],
+    gpsLocation?: GpsLocation,
   ): Promise<ChatResult> {
     const chat = await this.getOwnedChat(userId, chatId);
 
@@ -330,25 +409,46 @@ export class ChatsService {
     const attachedItems = await this.resolveAttachedItems(userId, itemIds);
 
     const assistantMessageId = randomUUID();
-    const replyContent = await this.openai.generateReply({
-      toolSlug: chat.toolSlug,
-      message: content,
-      history: chat.messages.map((message) => ({
-        role: message.role,
-        content: message.isItemCard
-          ? wrapItemCardContent(message.content)
-          : message.content,
-      })),
-      userId,
-      chatId: chat.id,
-      messageId: assistantMessageId,
-      userCountry,
-      attachments: await this.resolveAttachmentsForVision(attachments),
-      itemContext: this.combineContext(
-        this.buildItemContext(attachedItems),
-        this.describeNonImageAttachments(attachments),
-      ),
-    });
+    // Steps Planner skips generateReply — see createChat's identical
+    // comment.
+    const routeResult =
+      chat.toolSlug === 'steps-planner'
+        ? await this.stepsPlanner.planRoute(
+            content,
+            userId,
+            chat.id,
+            gpsLocation ?? null,
+            assistantMessageId,
+            chat.messages.map((message) => ({
+              role: message.role,
+              content: message.isItemCard
+                ? wrapItemCardContent(message.content)
+                : message.content,
+            })),
+            this.findPreviousRoute(chat.messages),
+          )
+        : null;
+    const replyContent = routeResult
+      ? routeResult.replyText
+      : await this.openai.generateReply({
+          toolSlug: chat.toolSlug,
+          message: content,
+          history: chat.messages.map((message) => ({
+            role: message.role,
+            content: message.isItemCard
+              ? wrapItemCardContent(message.content)
+              : message.content,
+          })),
+          userId,
+          chatId: chat.id,
+          messageId: assistantMessageId,
+          userCountry,
+          attachments: await this.resolveAttachmentsForVision(attachments),
+          itemContext: this.combineContext(
+            this.buildItemContext(attachedItems),
+            this.describeNonImageAttachments(attachments),
+          ),
+        });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     await this.messagesRepository.save([
       this.messagesRepository.create({
@@ -365,6 +465,12 @@ export class ChatsService {
         role: MessageRole.ASSISTANT,
         content: replyContent,
         createdAt: assistantTimestamp,
+        routeDistanceMeters: routeResult?.distanceMeters ?? null,
+        routeDurationSeconds: routeResult?.durationSeconds ?? null,
+        routeEncodedPolyline: routeResult?.encodedPolyline ?? null,
+        routeStartLabel: routeResult?.startLabel ?? null,
+        routeDestinationLabel: routeResult?.destinationLabel ?? null,
+        routeThreadId: routeResult?.routeThreadId ?? null,
       }),
     ]);
     // Preview reflects what the user asked, not the reply — the reply may

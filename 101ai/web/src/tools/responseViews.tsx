@@ -17,6 +17,8 @@ import HomeResponse from './home/ResponseView'
 import CarResponse from './car/ResponseView'
 import DiyResponse from './diy/ResponseView'
 import PoliticsResponse from './politics/ResponseView'
+import NewsResponse from './news/ResponseView'
+import StepsPlannerResponse from './steps-planner/ResponseView'
 import GeneralHealthResponse from './general-health/ResponseView'
 import GymPlannerResponse from './gym-planner/ResponseView'
 import BusinessPlanResponse from './business-plan/ResponseView'
@@ -56,6 +58,16 @@ export interface ResponseViewProps {
   // uses it instead of raw content when set. Most tools never call this,
   // which is fine — undefined leaves the raw-content fallback untouched.
   onCopyTextChange?: (text: string | null) => void
+  // Steps Planner-only: the real Google Routes API result for this
+  // specific reply (see Message.routeDistanceMeters etc.) — never set for
+  // any other tool, and never authored by the model (see
+  // steps-planner/ResponseView.tsx).
+  routeDistanceMeters?: number | null
+  routeDurationSeconds?: number | null
+  routeEncodedPolyline?: string | null
+  routeStartLabel?: string | null
+  routeDestinationLabel?: string | null
+  routeThreadId?: string | null
 }
 
 // Slug -> custom renderer for that tool's AI replies. Anything not listed
@@ -78,6 +90,8 @@ const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'car': CarResponse,
   'diy': DiyResponse,
   'politics': PoliticsResponse,
+  'news': NewsResponse,
+  'steps-planner': StepsPlannerResponse,
   'general-health': GeneralHealthResponse,
   'gym-planner': GymPlannerResponse,
   'business-plan': BusinessPlanResponse,

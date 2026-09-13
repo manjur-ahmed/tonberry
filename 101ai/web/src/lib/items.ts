@@ -1,4 +1,5 @@
 import { API_URL, getToken } from './api'
+import type { NewsArticle } from './news'
 
 export interface Item {
   id: string
@@ -71,6 +72,8 @@ export async function upsertItemSection(
     sectionHeading: string
     sectionBody: string
     sectionAction: 'new' | 'continue'
+    // News only — see lib/news.ts's NewsArticle.
+    articles?: NewsArticle[]
   },
 ): Promise<Item> {
   const response = await authedFetch('/items/sections', {
