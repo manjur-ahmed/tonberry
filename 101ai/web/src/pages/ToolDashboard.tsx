@@ -25,7 +25,7 @@ import {
   getCachedGpsLocation,
   queryGeolocationPermission,
   setCachedGpsLocation,
-} from '../lib/stepsPlannerLocation'
+} from '../lib/gpsLocation'
 import { deleteItem, getItemsForTool, type Item } from '../lib/items'
 import { generateContent } from '../lib/generate'
 import {
@@ -87,12 +87,13 @@ const DENSE_ITEM_TOOLS = new Set([
   'gym-planner',
   'business-plan',
   'business-research',
-  // A route's static map thumbnail wants real portrait room (see
-  // steps-planner/ItemView.tsx) — cramped into half a 2-column row it'd be
-  // tiny and squashed.
+  // A static map thumbnail (route or venue) wants real room to not look
+  // tiny and squashed cramped into half a 2-column row — see
+  // steps-planner/ItemView.tsx (portrait) and day-activity/ItemView.tsx
+  // (square).
   'steps-planner',
-  'salary-calculator',
   'day-activity',
+  'salary-calculator',
   'holiday-planning',
   'event-planner',
   'ad-creator',
@@ -275,7 +276,7 @@ function ToolDashboard() {
   // leaving the "Allow location"/cached-location flow alone when
   // permission is 'prompt', 'denied', or unqueryable (Safari).
   useEffect(() => {
-    if (tool?.slug !== 'steps-planner' || gpsLocation) return
+    if (!tool?.needsLocation || gpsLocation) return
     let cancelled = false
     queryGeolocationPermission().then((state) => {
       if (cancelled || state !== 'granted') return
@@ -293,7 +294,7 @@ function ToolDashboard() {
     return () => {
       cancelled = true
     }
-  }, [tool?.slug, gpsLocation])
+  }, [tool?.needsLocation, gpsLocation])
 
   // A photo (or item) with no caption still needs some non-empty content
   // (see AddMessageDto/CreateChatDto's @MinLength(1)) — the attachment
@@ -594,18 +595,18 @@ function ToolDashboard() {
             </div>
           )}
 
-          {tool?.slug === 'steps-planner' && !gpsLocation && (
+          {tool?.needsLocation && !gpsLocation && (
             <div className="px-4">
               <ToolNotice
                 icon={MapPin}
                 message={
                   geolocationDenied ? (
-                    "Couldn't get your location — just name a starting point instead (e.g. \"from Dudley town centre\")."
+                    "Couldn't get your location — just name a place directly in your message instead."
                   ) : isLocating ? (
                     'Getting your location…'
                   ) : (
                     <>
-                      Steps Planner needs your location to build a route from where you are.{' '}
+                      {tool.name} needs your location to work from where you are.{' '}
                       <button type="button" onClick={handleAllowLocation} className="underline">
                         Allow location
                       </button>
@@ -616,7 +617,7 @@ function ToolDashboard() {
             </div>
           )}
 
-          {tool?.slug === 'steps-planner' && gpsLocation && (
+          {tool?.needsLocation && gpsLocation && (
             <div className="px-4">
               <ToolNotice
                 icon={MapPin}

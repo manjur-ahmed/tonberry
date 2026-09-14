@@ -119,7 +119,17 @@ export class GoogleMapsClient {
     }
   }
 
-  async findPlace(query: string): Promise<FoundPlace | null> {
+  // `near` (with `radiusMeters`) biases results toward a real location —
+  // confirmed against the real API — without it, a generic query like
+  // "escape room" can resolve to the wrong city or country entirely; used
+  // by ActivityPlannerService to make sure a suggested activity resolves
+  // to a real venue actually near the user, not just anywhere with that
+  // name.
+  async findPlace(
+    query: string,
+    near?: LatLng,
+    radiusMeters = 20000,
+  ): Promise<FoundPlace | null> {
     try {
       const response = await fetch(PLACES_ENDPOINT, {
         method: 'POST',
@@ -128,7 +138,20 @@ export class GoogleMapsClient {
           'X-Goog-Api-Key': this.apiKey ?? '',
           'X-Goog-FieldMask': PLACES_FIELD_MASK,
         },
-        body: JSON.stringify({ textQuery: query, pageSize: 1 }),
+        body: JSON.stringify({
+          textQuery: query,
+          pageSize: 1,
+          ...(near
+            ? {
+                locationBias: {
+                  circle: {
+                    center: { latitude: near.lat, longitude: near.lng },
+                    radius: Math.min(radiusMeters, 50000),
+                  },
+                },
+              }
+            : {}),
+        }),
       });
       if (!response.ok) {
         this.logger.warn(

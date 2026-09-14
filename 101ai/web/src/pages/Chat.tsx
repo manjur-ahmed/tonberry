@@ -13,7 +13,7 @@ import {
   getCachedGpsLocation,
   queryGeolocationPermission,
   setCachedGpsLocation,
-} from '../lib/stepsPlannerLocation'
+} from '../lib/gpsLocation'
 import type { Item } from '../lib/items'
 import {
   ALLOWED_UPLOAD_CONTENT_TYPES,
@@ -245,7 +245,7 @@ function Chat() {
   // once gpsLocation is already set (from cache or this same check) — no
   // point silently re-fetching on every render.
   useEffect(() => {
-    if (tool?.slug !== 'steps-planner' || gpsLocation) return
+    if (!tool?.needsLocation || gpsLocation) return
     let cancelled = false
     queryGeolocationPermission().then((state) => {
       if (cancelled || state !== 'granted') return
@@ -263,7 +263,7 @@ function Chat() {
     return () => {
       cancelled = true
     }
-  }, [tool?.slug, gpsLocation])
+  }, [tool?.needsLocation, gpsLocation])
 
   // A single mutation instance handling however many uploads are in
   // flight at once — each call is independent (its own promise, its own
@@ -703,17 +703,17 @@ function Chat() {
           />
         )}
 
-        {tool.slug === 'steps-planner' && !gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
+        {tool.needsLocation && !gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
           <ToolNotice
             icon={MapPin}
             message={
               geolocationDenied ? (
-                "Couldn't get your location — just name a starting point instead (e.g. \"from Dudley town centre\")."
+                "Couldn't get your location — just name a place directly in your message instead."
               ) : isLocating ? (
                 'Getting your location…'
               ) : (
                 <>
-                  Steps Planner needs your location to build a route from where you are.{' '}
+                  {tool.name} needs your location to work from where you are.{' '}
                   <button type="button" onClick={handleAllowLocation} className="underline">
                     Allow location
                   </button>
@@ -723,7 +723,7 @@ function Chat() {
           />
         )}
 
-        {tool.slug === 'steps-planner' && gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
+        {tool.needsLocation && gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
           <ToolNotice
             icon={MapPin}
             message={

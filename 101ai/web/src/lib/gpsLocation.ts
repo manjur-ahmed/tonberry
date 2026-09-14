@@ -1,12 +1,14 @@
-// Caches the browser's last-granted GPS location for Steps Planner so the
-// user doesn't have to click "Allow location" again every time they start a
-// new chat within the same browsing session — plain localStorage, per
-// device, never sent anywhere until the user actually sends a message (see
-// Chat.tsx/ToolDashboard.tsx). A short TTL (not "forever") means a real
+// Caches the browser's last-granted GPS location so the user doesn't have
+// to click "Allow location" again every time they start a new chat within
+// the same browsing session — plain localStorage, per device, never sent
+// anywhere until the user actually sends a message. Shared across every
+// tool that needs "where the user actually is" (Steps Planner's routes,
+// Activity Planner's nearby venues, ...) rather than a separate cache and
+// permission prompt per tool. A short TTL (not "forever") means a real
 // location change (the user's actually moved) doesn't silently persist for
 // days; letting it expire just brings back the normal "Allow location"
 // prompt rather than failing anything.
-const STORAGE_KEY = 'steps-planner-gps-location'
+const STORAGE_KEY = 'gps-location'
 const TTL_MS = 20 * 60 * 1000
 
 export interface CachedGpsLocation {

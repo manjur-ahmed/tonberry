@@ -69,6 +69,11 @@ export interface Tool {
   multiActionCompose?: boolean
   // The FAB's menu items when multiActionCompose is true. Ignored otherwise.
   composeOptions?: ComposeOption[]
+  // Shows Chat.tsx/ToolDashboard.tsx's "Allow location" banner and enables
+  // the cached-GPS flow (see lib/gpsLocation.ts) — for a tool whose real
+  // answer depends on where the user actually is (Steps Planner's routes,
+  // Activity Planner's nearby venues), not just their country.
+  needsLocation?: boolean
 }
 
 // Placeholder catalog — swap these for the real tools once decided.
@@ -253,6 +258,7 @@ export const tools: Tool[] = [
     category: 'Health & Wellbeing',
     warning:
       'Routes are generated automatically — always use your own judgement about whether a suggested route is safe for you, especially at night or walking alone.',
+    needsLocation: true,
   },
   {
     slug: 'gym-planner',
@@ -290,6 +296,7 @@ export const tools: Tool[] = [
     description: 'Find ideas for things to do today.',
     icon: '🗺️',
     category: 'Leisure & Events',
+    needsLocation: true,
   },
   {
     slug: 'holiday-planning',
