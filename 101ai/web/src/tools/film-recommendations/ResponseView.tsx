@@ -5,6 +5,7 @@ import DefaultResponse from '../default/ResponseView'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
+import { buildCardListCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 interface Film {
@@ -80,7 +81,19 @@ function FilmCard({ film }: { film: Film }) {
   )
 }
 
-function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildFilmCopyText(film: Film): string {
+  return [
+    film.year ? `${film.title} (${film.year})` : film.title,
+    film.genre,
+    film.summary,
+    film.whyRecommended ? `Why this one: ${film.whyRecommended}` : null,
+    film.imdbRating != null ? `${film.imdbRating.toFixed(1)}/10 on IMDb` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('\n')
+}
+
+function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: FilmRecommendations | null = null
   let chatReply: string | null = null
   try {
@@ -138,6 +151,14 @@ function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the recommendations, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCardListCopyText(data.films.map(buildFilmCopyText)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

@@ -4,6 +4,7 @@ import DefaultResponse from '../default/ResponseView'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
+import { buildGuideCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 interface DiyGuide {
@@ -37,7 +38,7 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function DiyResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function DiyResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: DiyGuide | null = null
   let chatReply: string | null = null
   try {
@@ -90,6 +91,14 @@ function DiyResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveSta
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the guide, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildGuideCopyText(data.guideTitle, data.steps))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

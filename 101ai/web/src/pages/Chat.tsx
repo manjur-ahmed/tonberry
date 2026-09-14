@@ -669,7 +669,13 @@ function Chat() {
                 productReviews={message.productReviews}
                 productThreadId={message.productThreadId}
               />
-              <MessageActions content={copyTexts[message.id] ?? message.content} saveStatus={saveStatuses[message.id]} />
+              <MessageActions
+                content={copyTexts[message.id] ?? message.content}
+                saveStatus={saveStatuses[message.id]}
+                chatId={chat.id}
+                messageId={message.id}
+                initialFeedback={message.feedback}
+              />
               {itemLimitNoticeMessageId === message.id && <ItemLimitBanner />}
             </div>
           ),

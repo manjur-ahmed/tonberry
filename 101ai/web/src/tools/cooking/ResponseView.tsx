@@ -47,7 +47,19 @@ function Label({ children }: { children: string }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</h3>
 }
 
-function CookingResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildCopyText(data: Recipe): string {
+  return [
+    data.recipeName,
+    '',
+    'Ingredients:',
+    ...data.ingredients.map((ingredient) => `- ${ingredient}`),
+    '',
+    'Instructions:',
+    ...data.instructions.map((step, index) => `${index + 1}. ${step}`),
+  ].join('\n')
+}
+
+function CookingResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: Recipe | null = null
   let chatReply: string | null = null
   try {
@@ -104,6 +116,14 @@ function CookingResponse({ content, toolSlug, chatId, messageId, readOnly, onSav
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the recipe, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCopyText(data))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

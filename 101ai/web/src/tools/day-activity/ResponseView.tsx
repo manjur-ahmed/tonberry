@@ -7,6 +7,7 @@ import { fetchActivityVenue, googleMapsPlaceUrl, staticMapUrl, type ActivityVenu
 import { getCachedGpsLocation } from '../../lib/gpsLocation'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
+import { buildCardListCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 interface Activity {
@@ -116,7 +117,19 @@ function ActivityCard({ activity }: { activity: Activity }) {
   )
 }
 
-function ActivityFinderResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildActivityCopyText(activity: Activity): string {
+  return [
+    displayTitle(activity),
+    [activity.category, activity.duration].filter(Boolean).join(' • ') || null,
+    activity.description,
+    activity.suitableFor ? `Suitable for: ${activity.suitableFor}` : null,
+    activity.whyRecommended ? `Why this one: ${activity.whyRecommended}` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('\n')
+}
+
+function ActivityFinderResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: ActivityRecommendations | null = null
   let chatReply: string | null = null
   try {
@@ -204,6 +217,20 @@ function ActivityFinderResponse({ content, toolSlug, chatId, messageId, readOnly
     if (!venuesReady) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [venuesReady])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the recommendations, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange). Waits on venuesReady so a live list
+  // copies with resolved venue names rather than the model's placeholder
+  // titles.
+  useEffect(() => {
+    if (!data || !venuesReady) return
+    const resolved = data.activities.map((activity, index) =>
+      isLiveList ? { ...activity, venue: venueQueries[index]?.data ?? null } : activity,
+    )
+    onCopyTextChange?.(buildCardListCopyText(resolved.map(buildActivityCopyText)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venuesReady])
 

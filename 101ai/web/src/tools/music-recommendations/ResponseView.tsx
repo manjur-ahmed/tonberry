@@ -6,6 +6,7 @@ import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { formatPlays } from '../../lib/formatPlays'
+import { buildCardListCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 interface Song {
@@ -89,7 +90,20 @@ function SongCard({ song }: { song: Song }) {
   )
 }
 
-function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildSongCopyText(song: Song): string {
+  return [
+    song.year ? `${song.title} (${song.year})` : song.title,
+    song.artist,
+    song.genre,
+    song.summary,
+    song.whyRecommended ? `Why this one: ${song.whyRecommended}` : null,
+    song.spotifyPlays != null ? `${formatPlays(song.spotifyPlays)} plays on Spotify` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('\n')
+}
+
+function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: MusicRecommendations | null = null
   let chatReply: string | null = null
   try {
@@ -148,6 +162,14 @@ function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, re
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the recommendations, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCardListCopyText(data.songs.map(buildSongCopyText)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

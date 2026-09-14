@@ -59,18 +59,18 @@
   - [x] Tech
   - [ ] Set up additional API requirements for supplemental data
 - [ ] Improve prompts on all wired-up tools — the earliest ones (Word Helper, Film/Book/Music Recommendations) predate patterns established by later tools: confidence-gating against hallucination (Quote Finder), a stable per-item key so an evolving thing gets amended in place instead of forked or lost (Cooking's `dishKey`/Diet's `planKey`), tool-specific tone, and deliberately minimal instruction where the model handles nuance better on its own (Diet). Revisit each tool's `tool-config.ts` entry against these patterns for consistency, not just the ones that happen to need a new feature
-- [ ] Design dashboard for remaining tools
-  - [ ] Dynamic dashboard tabs (may be different for different tools)
-  - [ ] Design item card for different tools
-- [ ] Design different chat UI for different tools (not all might be a chat)
+- [x] Design dashboard for remaining tools
+  - [x] Dynamic dashboard tabs (may be different for different tools)
+  - [x] Design item card for different tools
+- [x] Design different chat UI for different tools (not all might be a chat)
 - [x] Set up items to be sent to different tools (e.g. Word Helper might save an item called "cake" which can then be sent to the Cooking tool — everything interconnected)
 - [x] Fix file/image uploader (currently not working — dead "Attach" button in both the chat composer and the dashboard) and roll it out across all chats
 - [ ] Need a "recommend tool" page
 - [ ] Put in place per-plan usage limits (what a user can do based on which package/tier they're on)
 - [ ] Enable actually purchasing Plus/Premium — Pricing page has both permanently disabled ("Coming soon"), so every plan-gated feature (Memory, unlimited items) is currently unreachable by any real user
 - [ ] Fix the Memory toggle — Settings' toggle is local-only and never saved to the backend, while Chat's "Memory on/off" indicator instead reads off `user.plan`; the two are disconnected and neither can be legitimately exercised until Plus/Premium purchase exists
-- [ ] Persist thumbs up/down message feedback — currently local UI state only, discarded on remount, no backend call
-- [ ] Fix the "Copy" button on every structured-output tool's reply — it copies the raw JSON message content, not the rendered text (e.g. copying a diet plan pastes `{"kind":"plan",...}`). Fixed for Ad Creator specifically (see `onCopyTextChange` in responseViews.tsx/Chat.tsx — a ResponseView can report a plain-text override), but every other tool still has the underlying issue; worth going through and wiring the same override wherever a copy-pasteable result actually matters
+- [x] Persist thumbs up/down message feedback — currently local UI state only, discarded on remount, no backend call
+- [x] Fix the "Copy" button on every structured-output tool's reply — it copies the raw JSON message content, not the rendered text (e.g. copying a diet plan pastes `{"kind":"plan",...}`). Fixed for Ad Creator specifically (see `onCopyTextChange` in responseViews.tsx/Chat.tsx — a ResponseView can report a plain-text override), but every other tool still has the underlying issue; worth going through and wiring the same override wherever a copy-pasteable result actually matters
 - [ ] Wire up or remove the dashboard's "Examples" tab — always shows the same placeholder text for every tool, no real data source
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
 - [ ] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen

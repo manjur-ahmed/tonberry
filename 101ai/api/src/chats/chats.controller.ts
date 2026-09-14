@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ChatsService } from './chats.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { AddMessageDto } from './dto/add-message.dto';
 import { StartChatFromItemDto } from './dto/start-chat-from-item.dto';
+import { SetMessageFeedbackDto } from './dto/set-message-feedback.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { User } from '../users/user.entity';
@@ -58,6 +59,21 @@ export class ChatsController {
       dto.attachments,
       dto.itemIds,
       dto.gpsLocation,
+    );
+  }
+
+  @Patch('chats/:chatId/messages/:messageId/feedback')
+  setMessageFeedback(
+    @CurrentUser() user: User,
+    @Param('chatId') chatId: string,
+    @Param('messageId') messageId: string,
+    @Body() dto: SetMessageFeedbackDto,
+  ) {
+    return this.chatsService.setMessageFeedback(
+      user.id,
+      chatId,
+      messageId,
+      dto.feedback,
     );
   }
 

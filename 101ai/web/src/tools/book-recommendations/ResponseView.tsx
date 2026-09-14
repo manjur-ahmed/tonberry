@@ -5,6 +5,7 @@ import DefaultResponse from '../default/ResponseView'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
+import { buildCardListCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 interface Book {
@@ -88,7 +89,20 @@ function BookCard({ book }: { book: Book }) {
   )
 }
 
-function BookRecommendationsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildBookCopyText(book: Book): string {
+  return [
+    book.year ? `${book.title} (${book.year})` : book.title,
+    book.author,
+    book.genre,
+    book.summary,
+    book.whyRecommended ? `Why this one: ${book.whyRecommended}` : null,
+    book.goodreadsRating != null ? `${book.goodreadsRating.toFixed(1)}/5 on Goodreads` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('\n')
+}
+
+function BookRecommendationsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: BookRecommendations | null = null
   let chatReply: string | null = null
   try {
@@ -147,6 +161,14 @@ function BookRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the recommendations, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCardListCopyText(data.books.map(buildBookCopyText)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

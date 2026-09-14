@@ -41,7 +41,17 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function MathsSolverResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildCopyText(data: MathsSolution): string {
+  return [
+    data.problemTitle,
+    '',
+    `Answer: ${data.answer}`,
+    '',
+    ...data.steps.map((step, index) => `${index + 1}. ${step}`),
+  ].join('\n')
+}
+
+function MathsSolverResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: MathsSolution | null = null
   let chatReply: string | null = null
   try {
@@ -94,6 +104,14 @@ function MathsSolverResponse({ content, toolSlug, chatId, messageId, readOnly, o
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the solution, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCopyText(data))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

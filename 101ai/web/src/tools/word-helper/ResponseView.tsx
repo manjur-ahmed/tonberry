@@ -38,7 +38,19 @@ function Label({ children }: { children: string }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</h3>
 }
 
-function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildCopyText(data: WordDefinition): string {
+  return [
+    `${data.word} ${data.phonetic}`,
+    data.shortDefinition,
+    data.meaning,
+    data.examples.length > 0 ? `Examples:\n${data.examples.map((example) => `- ${example}`).join('\n')}` : null,
+    data.synonyms.length > 0 ? `Similar words: ${data.synonyms.join(', ')}` : null,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join('\n\n')
+}
+
+function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: WordDefinition | null = null
   let chatReply: string | null = null
   try {
@@ -94,6 +106,14 @@ function WordHelperResponse({ content, toolSlug, chatId, messageId, readOnly, on
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the definition, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCopyText(data))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

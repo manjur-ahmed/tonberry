@@ -5,6 +5,7 @@ import { upsertItemSection, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { renderInline } from './renderInline'
+import { buildSectionsCopyText, buildTopicTurnCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 // Saves one item per *chat* rather than one per reply (see
@@ -60,7 +61,7 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function PoliticsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function PoliticsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let document: TopicDocument | null = null
   let turn: TopicTurn | null = null
   let chatReply: string | null = null
@@ -119,6 +120,15 @@ function PoliticsResponse({ content, toolSlug, chatId, messageId, readOnly, onSa
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the explanation, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (document) onCopyTextChange?.(buildSectionsCopyText(document.title, document.sections))
+    else if (turn) onCopyTextChange?.(buildTopicTurnCopyText(turn.sectionHeading, turn.sectionBody))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

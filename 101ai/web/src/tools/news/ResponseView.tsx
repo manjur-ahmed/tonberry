@@ -8,6 +8,7 @@ import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { useAuth } from '../../hooks/useAuth'
 import { renderInline } from './renderInline'
+import { buildSectionsCopyText, buildTopicTurnCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 // Saves one item per *chat* rather than one per reply (see
@@ -101,7 +102,7 @@ function ArticleList({ articles }: { articles: NewsArticle[] }) {
   )
 }
 
-function NewsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function NewsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let document: TopicDocument | null = null
   let turn: TopicTurn | null = null
   let chatReply: string | null = null
@@ -185,6 +186,16 @@ function NewsResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveSt
     saveMutation.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articlesReady])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the explanation, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange). Article links deliberately left
+  // out — the summary text is the actual content worth pasting.
+  useEffect(() => {
+    if (document) onCopyTextChange?.(buildSectionsCopyText(document.title, document.sections))
+    else if (turn) onCopyTextChange?.(buildTopicTurnCopyText(turn.sectionHeading, turn.sectionBody))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (chatReply) return <DefaultResponse content={chatReply} toolSlug={toolSlug} chatId={chatId} messageId={messageId} />
 

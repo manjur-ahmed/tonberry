@@ -4,6 +4,7 @@ import DefaultResponse from '../default/ResponseView'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
+import { buildPlanTableCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 interface GymPlan {
@@ -112,7 +113,7 @@ function PlanRow({ label, value }: FormattedRow) {
   )
 }
 
-function GymPlannerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function GymPlannerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: GymPlan | null = null
   let chatReply: string | null = null
   try {
@@ -165,6 +166,14 @@ function GymPlannerResponse({ content, toolSlug, chatId, messageId, readOnly, on
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the plan, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildPlanTableCopyText(data.planTitle, data.columns, data.rows))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

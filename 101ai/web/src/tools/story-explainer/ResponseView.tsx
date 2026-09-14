@@ -43,7 +43,11 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function StoryExplainerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildCopyText(data: StoryExplanation): string {
+  return `${displayTitle(data)}\n\n${data.explanation}`
+}
+
+function StoryExplainerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: StoryExplanation | null = null
   let chatReply: string | null = null
   try {
@@ -99,6 +103,14 @@ function StoryExplainerResponse({ content, toolSlug, chatId, messageId, readOnly
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the explanation, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCopyText(data))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

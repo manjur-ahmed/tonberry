@@ -95,6 +95,10 @@ export interface ChatMessage {
   // title+year card) even inside a chat that belongs to a different tool.
   // Null on a message saved before this field existed.
   itemToolSlug: string | null
+  // The user's thumbs up/down on this reply, or null if they haven't
+  // reacted — persisted server-side (see MessageActions.tsx), not just
+  // local UI state.
+  feedback: 'up' | 'down' | null
   createdAt: string
 }
 
@@ -170,6 +174,20 @@ export async function addMessage(
   })
   if (!response.ok) throw new Error(`Failed to send message: ${response.status}`)
   return response.json()
+}
+
+// null clears an existing reaction — MessageActions.tsx sends this when the
+// currently-active thumb is clicked again.
+export async function setMessageFeedback(
+  chatId: string,
+  messageId: string,
+  feedback: 'up' | 'down' | null,
+): Promise<void> {
+  const response = await authedFetch(`/chats/${chatId}/messages/${messageId}/feedback`, {
+    method: 'PATCH',
+    body: JSON.stringify({ feedback }),
+  })
+  if (!response.ok) throw new Error(`Failed to save feedback: ${response.status}`)
 }
 
 export async function getChat(chatId: string): Promise<Chat> {

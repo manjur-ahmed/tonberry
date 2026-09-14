@@ -176,6 +176,13 @@ export class Message {
   @Column({ name: 'product_thread_id', type: 'varchar', nullable: true })
   productThreadId: string | null;
 
+  // The user's thumbs up/down on this reply (see ChatsService.setMessageFeedback)
+  // — only ever set on an ASSISTANT message, null until the user reacts.
+  // Plain varchar rather than a pg enum so adding a third reaction later
+  // (if ever) is a one-line DTO change, not another migration.
+  @Column({ type: 'varchar', nullable: true })
+  feedback: 'up' | 'down' | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

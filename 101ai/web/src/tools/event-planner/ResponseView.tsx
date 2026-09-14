@@ -4,6 +4,7 @@ import DefaultResponse from '../default/ResponseView'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
+import { buildSectionsCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 // One item per *event*, saved wholesale via ItemsService.saveItem — same
@@ -43,7 +44,7 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-function EventPlannerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function EventPlannerResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: EventPlan | null = null
   let chatReply: string | null = null
   try {
@@ -96,6 +97,14 @@ function EventPlannerResponse({ content, toolSlug, chatId, messageId, readOnly, 
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the plan, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildSectionsCopyText(data.planTitle, data.sections))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

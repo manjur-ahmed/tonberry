@@ -6,6 +6,7 @@ import { saveItem, ItemLimitReachedError } from '../../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { buildYoutubeSearchUrl } from './youtubeSearchUrl'
+import { buildCardListCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
 export interface Quote {
@@ -78,7 +79,12 @@ export function QuoteCard({ quote, showVerifyLink = true }: { quote: Quote; show
   )
 }
 
-function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange }: ResponseViewProps) {
+function buildQuoteCopyText(quote: Quote): string {
+  const attribution = [quote.speaker, quote.source].filter(Boolean).join(' — ')
+  return `"${quote.text}"${attribution ? `\n${attribution}` : ''}${quote.year ? ` (${quote.year})` : ''}`
+}
+
+function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, onSaveStatusChange, onCopyTextChange }: ResponseViewProps) {
   let data: QuoteFinderResult | null = null
   let chatReply: string | null = null
   try {
@@ -136,6 +142,14 @@ function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, o
     if (hasSavedRef.current) return
     hasSavedRef.current = true
     saveMutation.mutate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Reports the plain-text version up to Chat.tsx so its copy button copies
+  // the quotes, not this message's raw JSON (see
+  // ResponseViewProps.onCopyTextChange).
+  useEffect(() => {
+    if (data) onCopyTextChange?.(buildCardListCopyText(data.quotes.map(buildQuoteCopyText)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

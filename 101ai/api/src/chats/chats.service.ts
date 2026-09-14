@@ -566,6 +566,23 @@ export class ChatsService {
     return { type: 'reply', chat: updated };
   }
 
+  // Ownership is enforced via getOwnedChat (404s on a foreign/unknown
+  // chatId) rather than querying the message directly, so a message id that
+  // belongs to someone else's chat can't be reacted to. 404s on a
+  // messageId that isn't actually in that chat too, for the same reason.
+  async setMessageFeedback(
+    userId: string,
+    chatId: string,
+    messageId: string,
+    feedback: 'up' | 'down' | null,
+  ): Promise<Message> {
+    const chat = await this.getOwnedChat(userId, chatId);
+    const message = chat.messages.find((candidate) => candidate.id === messageId);
+    if (!message) throw new NotFoundException('Message not found');
+    message.feedback = feedback;
+    return this.messagesRepository.save(message);
+  }
+
   async getOwnedChat(userId: string, chatId: string): Promise<Chat> {
     const chat = await this.chatsRepository.findOne({
       where: { id: chatId, userId },
