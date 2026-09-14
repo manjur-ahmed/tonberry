@@ -395,14 +395,24 @@ function Chat() {
               isItemCard: false,
               itemTitle: null,
               itemToolSlug: null,
-              // A user message never carries Steps Planner's real-route
-              // snapshot — only ever set on the assistant's own reply.
+              // A user message never carries Steps Planner's real-route or
+              // Shopping's real-product snapshot — only ever set on the
+              // assistant's own reply.
               routeDistanceMeters: null,
               routeDurationSeconds: null,
               routeEncodedPolyline: null,
               routeStartLabel: null,
               routeDestinationLabel: null,
               routeThreadId: null,
+              productTitle: null,
+              productPrice: null,
+              productOldPrice: null,
+              productThumbnail: null,
+              productLink: null,
+              productSource: null,
+              productRating: null,
+              productReviews: null,
+              productThreadId: null,
               // previewUrls (the local blobs, shown instantly) stand in for
               // the real presigned view urls until onSuccess replaces this
               // whole optimistic message with the server's actual response.
@@ -649,6 +659,15 @@ function Chat() {
                 routeStartLabel={message.routeStartLabel}
                 routeDestinationLabel={message.routeDestinationLabel}
                 routeThreadId={message.routeThreadId}
+                productTitle={message.productTitle}
+                productPrice={message.productPrice}
+                productOldPrice={message.productOldPrice}
+                productThumbnail={message.productThumbnail}
+                productLink={message.productLink}
+                productSource={message.productSource}
+                productRating={message.productRating}
+                productReviews={message.productReviews}
+                productThreadId={message.productThreadId}
               />
               <MessageActions content={copyTexts[message.id] ?? message.content} saveStatus={saveStatuses[message.id]} />
               {itemLimitNoticeMessageId === message.id && <ItemLimitBanner />}

@@ -17,8 +17,10 @@ import HomeResponse from './home/ResponseView'
 import CarResponse from './car/ResponseView'
 import DiyResponse from './diy/ResponseView'
 import PoliticsResponse from './politics/ResponseView'
+import BillsUtilitiesResponse from './bills-utilities/ResponseView'
 import NewsResponse from './news/ResponseView'
 import StepsPlannerResponse from './steps-planner/ResponseView'
+import ShoppingResponse from './shopping/ResponseView'
 import GeneralHealthResponse from './general-health/ResponseView'
 import GymPlannerResponse from './gym-planner/ResponseView'
 import BusinessPlanResponse from './business-plan/ResponseView'
@@ -68,6 +70,19 @@ export interface ResponseViewProps {
   routeStartLabel?: string | null
   routeDestinationLabel?: string | null
   routeThreadId?: string | null
+  // Shopping-only: the real SerpApi Google Shopping result for this
+  // specific reply (see Message.productTitle etc.) — never set for any
+  // other tool, and never authored by the model (see
+  // shopping/ResponseView.tsx).
+  productTitle?: string | null
+  productPrice?: string | null
+  productOldPrice?: string | null
+  productThumbnail?: string | null
+  productLink?: string | null
+  productSource?: string | null
+  productRating?: number | null
+  productReviews?: number | null
+  productThreadId?: string | null
 }
 
 // Slug -> custom renderer for that tool's AI replies. Anything not listed
@@ -90,8 +105,14 @@ const responseViews: Record<string, ComponentType<ResponseViewProps>> = {
   'car': CarResponse,
   'diy': DiyResponse,
   'politics': PoliticsResponse,
+  'bills-utilities': BillsUtilitiesResponse,
   'news': NewsResponse,
   'steps-planner': StepsPlannerResponse,
+  shopping: ShoppingResponse,
+  // Same real-product-search pipeline as Shopping (see chats.service.ts's
+  // SHOPPING_TOOL_SLUGS) — just a different entry point, so it reuses the
+  // exact same components rather than a parallel copy.
+  clothing: ShoppingResponse,
   'general-health': GeneralHealthResponse,
   'gym-planner': GymPlannerResponse,
   'business-plan': BusinessPlanResponse,

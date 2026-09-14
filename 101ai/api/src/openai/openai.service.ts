@@ -26,13 +26,56 @@ const AUX_MODEL = 'gpt-4o-mini';
 const PLACEHOLDER_REPLY =
   "This is a placeholder response — real AI replies aren't wired up yet.";
 
+const SHOPPING_INTENT_SYSTEM_PROMPT =
+  'You help interpret a shopping request. You never invent a product, ' +
+  "price, or seller yourself — that's found for real afterward by a " +
+  'real shopping search, and that real search only ever runs once the ' +
+  'user has actually confirmed what to look for — never on the first ' +
+  'message naming a product. Decide "kind": (1) "chat" — greetings, ' +
+  'small talk, or when it\'s genuinely too vague to know what they want ' +
+  'yet (e.g. "I want to buy something") — write a short, warm reply ' +
+  'asking what they\'re after, and leave "searchQuery" null. (2) ' +
+  '"confirm" — the FIRST time enough is known to name a specific ' +
+  'product (even a simple one like "a laptop" or "running shoes"), OR ' +
+  'whenever they ask to change something about a product not yet ' +
+  'confirmed/searched — restate concretely what you understood in ' +
+  '"reply" and ask if they\'d like you to find some real options (e.g. ' +
+  '"Got it — a red leather laptop bag. Want me to find some real ' +
+  'options?"), and leave "searchQuery" null; do NOT search yet. (3) ' +
+  '"shopping" — ONLY on a later message that clearly confirms/agrees to ' +
+  'a product you already asked about in "confirm" (e.g. "yes", "go ' +
+  'ahead", "please", "sounds good", "find it") — never on the same ' +
+  'message that first names the product, even if it sounds complete or ' +
+  'urgent; always confirm first. For "shopping", "searchQuery" is a ' +
+  'short, complete, real-world product search phrase built from what ' +
+  'you already confirmed (not from the bare "yes" itself), e.g. ' +
+  '"wireless noise cancelling headphones", "red leather laptop bag", ' +
+  'ready to run as-is; "reply" is null (the app builds the real reply ' +
+  'from actual search results, never your own written text). ' +
+  'REFINING AN ALREADY-FOUND PRODUCT: if the conversation history ' +
+  'already shows a product this app found (its own reply describing a ' +
+  'real item with a price — not just a "confirm" question), and this ' +
+  'message asks for a CHANGE to that same thing (a different colour, ' +
+  'size, brand, price range, or similar — e.g. "make it red", ' +
+  '"something cheaper", "in a medium"), that change ALSO needs ' +
+  'confirming first, same as a first-time request — use "confirm", ' +
+  'restating the updated product (e.g. previous product "laptop bag", ' +
+  'user says "make it red" → confirm "a red laptop bag"), then only ' +
+  'move to "shopping" (with the full updated searchQuery, e.g. "red ' +
+  'laptop bag") once THAT change is itself confirmed. Set ' +
+  '"isRefinement" to true whenever the eventual "shopping" search is ' +
+  'updating an already-found product rather than a brand new one; false ' +
+  'otherwise. Respond with ONLY a JSON object: {"kind": ' +
+  '"shopping"|"confirm"|"chat", "reply": string|null, "searchQuery": ' +
+  'string|null, "isRefinement": boolean}.';
+
 const ROUTE_INTENT_SYSTEM_PROMPT =
   'You help interpret a walking-route request. You never invent the route ' +
   "itself — that's computed for real afterward by a mapping service. " +
   'Decide: (1) "kind" — "route" if there\'s enough to act on: either a ' +
   'walking distance/step target for a loop, or a named destination for a ' +
   'point-to-point walk, AND one of: a named starting location, the app ' +
-  'already knows the user\'s current location, OR they\'re asking which ' +
+  "already knows the user's current location, OR they're asking which " +
   'stop/station to start from (see "startCategory" below — this counts ' +
   'as "route" too, even with no location named and no GPS, since the app ' +
   'itself finds the starting point in that case). "chat" otherwise — a ' +
@@ -88,7 +131,7 @@ const ROUTE_INTENT_SYSTEM_PROMPT =
   'reuses the previous ones, and leave "mode" null too unless they ' +
   'explicitly ask to switch between a loop and a specific destination. ' +
   'For a comparative word like "shorter"/"less" or "longer"/"more" with ' +
-  'no exact number, look at the previous reply\'s reported distance/steps ' +
+  "no exact number, look at the previous reply's reported distance/steps " +
   'in the history and set "targetSteps" to a concretely smaller (roughly ' +
   '60% of it) or larger (roughly 160% of it) number — never leave it null ' +
   'when a comparative word like this is used. Only treat a follow-up as a ' +
@@ -328,6 +371,91 @@ export class OpenAiService {
       return fallback;
     }
   }
+
+  // Deliberately separate from generateReply — same "AI extracts intent
+  // only, real data produces the result" shape as extractRouteIntent.
+  // ShoppingService does the real SerpApi search afterward and builds the
+  // reply text itself from the real product found; the model never
+  // invents a product, price, or seller. Falls back to a "chat" reply
+  // asking the user to rephrase on any failure.
+  async extractShoppingIntent(
+    message: string,
+    userId: string,
+    chatId: string,
+    history: HistoryMessage[] = [],
+  ): Promise<ShoppingIntent> {
+    const fallback: ShoppingIntent = {
+      kind: 'chat',
+      reply: "Sorry, I didn't catch that — what are you shopping for?",
+      searchQuery: null,
+      isRefinement: false,
+    };
+    try {
+      const response = await this.client.chat.completions.create({
+        model: AUX_MODEL,
+        messages: [
+          { role: 'system', content: SHOPPING_INTENT_SYSTEM_PROMPT },
+          ...history.map((entry) => ({
+            role: entry.role,
+            content: entry.content,
+          })),
+          { role: 'user', content: message },
+        ],
+        max_completion_tokens: 150,
+        response_format: { type: 'json_object' },
+      });
+      const raw = response.choices[0]?.message?.content;
+      const usage = response.usage;
+      if (usage) {
+        await this.usageLogs.record({
+          userId,
+          chatId,
+          messageId: null,
+          toolSlug: 'shopping',
+          model: AUX_MODEL,
+          promptTokens: usage.prompt_tokens,
+          completionTokens: usage.completion_tokens,
+          totalTokens: usage.total_tokens,
+          cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+        });
+      }
+      const parsed: unknown = raw ? JSON.parse(raw) : null;
+      const record =
+        parsed && typeof parsed === 'object'
+          ? (parsed as Record<string, unknown>)
+          : {};
+      if (
+        record.kind !== 'shopping' &&
+        record.kind !== 'confirm' &&
+        record.kind !== 'chat'
+      ) {
+        return fallback;
+      }
+      return {
+        kind: record.kind,
+        reply: typeof record.reply === 'string' ? record.reply : fallback.reply,
+        searchQuery:
+          typeof record.searchQuery === 'string' ? record.searchQuery : null,
+        isRefinement: record.isRefinement === true,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+}
+
+export interface ShoppingIntent {
+  // 'confirm' — enough is known to name a product, but the user hasn't
+  // yet agreed to a real search; 'shopping' — they just confirmed, run
+  // the real search. See SHOPPING_INTENT_SYSTEM_PROMPT for the full
+  // confirm-then-search flow.
+  kind: 'shopping' | 'confirm' | 'chat';
+  reply: string;
+  searchQuery: string | null;
+  // True when this message is refining the SAME product already found in
+  // this chat (see ShoppingService's continuation handling) — false for a
+  // genuinely new, unrelated search.
+  isRefinement: boolean;
 }
 
 export interface RouteIntent {

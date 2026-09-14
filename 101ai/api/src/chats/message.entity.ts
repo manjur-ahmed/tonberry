@@ -138,6 +138,44 @@ export class Message {
   @Column({ name: 'route_thread_id', type: 'varchar', nullable: true })
   routeThreadId: string | null;
 
+  // A real product SerpApi's Google Shopping search found for this
+  // specific Shopping-tool reply (see ShoppingService.findProduct) — set
+  // directly from that real result, never authored or estimated by the
+  // model. Only ever set on an ASSISTANT message; null on any reply that
+  // couldn't find a product (a clarifying question, or a real API
+  // failure).
+  @Column({ name: 'product_title', type: 'varchar', nullable: true })
+  productTitle: string | null;
+
+  @Column({ name: 'product_price', type: 'varchar', nullable: true })
+  productPrice: string | null;
+
+  @Column({ name: 'product_old_price', type: 'varchar', nullable: true })
+  productOldPrice: string | null;
+
+  @Column({ name: 'product_thumbnail', type: 'text', nullable: true })
+  productThumbnail: string | null;
+
+  @Column({ name: 'product_link', type: 'text', nullable: true })
+  productLink: string | null;
+
+  @Column({ name: 'product_source', type: 'varchar', nullable: true })
+  productSource: string | null;
+
+  @Column({ name: 'product_rating', type: 'real', nullable: true })
+  productRating: number | null;
+
+  @Column({ name: 'product_reviews', type: 'integer', nullable: true })
+  productReviews: number | null;
+
+  // Shared by every message in the same "tweak this product" conversation
+  // thread (see ShoppingService.findProduct's continuation handling, and
+  // routeThreadId's identical pattern above) — lets the frontend update
+  // one saved Item across a whole back-and-forth ("change it to red")
+  // instead of creating a new one per message.
+  @Column({ name: 'product_thread_id', type: 'varchar', nullable: true })
+  productThreadId: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 }

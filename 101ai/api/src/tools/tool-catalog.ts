@@ -100,9 +100,10 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
     description: 'Get outfit and clothing suggestions.',
   },
   {
-    slug: 'insurance',
-    name: 'Insurance',
-    description: 'Compare insurance options and terms.',
+    slug: 'bills-utilities',
+    name: 'Bills & Utilities',
+    description:
+      'Get help with insurance, energy, phone, broadband, and other household bills.',
   },
   {
     slug: 'general-health',

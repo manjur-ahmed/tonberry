@@ -208,6 +208,15 @@ export const tools: Tool[] = [
     icon: '🧭',
     category: 'Personal Finance',
   },
+  {
+    slug: 'bills-utilities',
+    name: 'Bills & Utilities',
+    description: 'Get help with insurance, energy, phone, and other household bills.',
+    icon: '🧾',
+    category: 'Personal Finance',
+    warning:
+      "This isn't a live quote or confirmed pricing — always compare real current deals yourself (e.g. via a comparison site) before switching or buying.",
+  },
 
   // Shopping
   {
@@ -216,6 +225,8 @@ export const tools: Tool[] = [
     description: 'Get help deciding what to buy.',
     icon: '🛒',
     category: 'Shopping',
+    warning:
+      'Prices, stock, and offers change constantly and may not be current — always check the real price and availability on the seller\'s own site before buying.',
   },
   {
     slug: 'clothing',
@@ -223,13 +234,9 @@ export const tools: Tool[] = [
     description: 'Get outfit and clothing suggestions.',
     icon: '👕',
     category: 'Shopping',
-  },
-  {
-    slug: 'insurance',
-    name: 'Insurance',
-    description: 'Compare insurance options and terms.',
-    icon: '🛡️',
-    category: 'Shopping',
+    warning:
+      'Prices, stock, and offers change constantly and may not be current — always check the real price, size, and availability on the seller\'s own site before buying.',
+    promoteMemory: true,
   },
 
   // Health & Wellbeing

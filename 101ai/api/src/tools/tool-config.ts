@@ -1242,6 +1242,19 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     ),
     responseSchema: TOPIC_EXPLAINER_SCHEMA,
   },
+  // Formerly just "Insurance" — broadened to cover the wider set of
+  // recurring household bills people actually manage together (energy,
+  // phone/broadband, insurance of all kinds), renamed to match.
+  'bills-utilities': {
+    model: 'gpt-4o-mini',
+    usesResidencyContext: true,
+    task: buildTopicExplainerTask(
+      'insurance, energy, phone/mobile, broadband, or another household bill',
+      'In sectionBody, wrap important terms, provider types, or policy/tariff names in **double asterisks** to bold them (e.g. **third-party fire and theft**, **standing charge**). Be selective: bold the handful of specifics that matter most, not every term.',
+      "You have no live pricing or deal data, and providers/tariffs change constantly — never state a specific current price, deal, or named real provider as if it's confirmed accurate today; if you mention real providers or typical costs, frame them as general/illustrative and say plainly that the user should compare current real quotes themselves (e.g. via a comparison site) rather than treating anything here as an actual quote. How bills/insurance work — providers, regulation, typical cover types, switching processes — varies a lot by country; if the user's country is given below, ground your answer in that country's real system by name (e.g. \"In the UK, energy suppliers are regulated by Ofgem...\") rather than defaulting to assumptions from any one place, and ask which country they mean if it's not given and genuinely affects the answer.",
+    ),
+    responseSchema: TOPIC_EXPLAINER_SCHEMA,
+  },
   cooking: {
     model: 'gpt-4o-mini',
     tone: 'You are a warm, encouraging, friendly home-cooking companion — genuinely enthusiastic about food, never clinical or terse. Celebrate what the user has to work with, and make swaps or substitutions sound like exciting ideas rather than compromises.',

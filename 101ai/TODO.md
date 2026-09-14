@@ -39,9 +39,9 @@
   - [x] Salary Calculator
   - [x] Budget Planner
   - [x] Career Planner
-  - [ ] Shopping
-  - [ ] Clothing
-  - [ ] Insurance
+  - [x] Shopping
+  - [x] Clothing
+  - [x] Bills & Utilities (renamed from Insurance)
   - [x] General Health
   - [x] Diet
   - [x] Self Care

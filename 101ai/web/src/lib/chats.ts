@@ -60,6 +60,25 @@ export interface ChatMessage {
   // Null for a route's own first message (its own id is the thread) or a
   // non-route reply.
   routeThreadId: string | null
+  // A real product SerpApi's Google Shopping search found for this
+  // specific Shopping reply — set directly from that real result server-
+  // side, never invented by the model. Only ever set on an assistant
+  // message, and only for the Shopping tool; null on any reply that
+  // couldn't find a product (a clarifying question, or a real API
+  // failure). See shopping/ResponseView.tsx.
+  productTitle: string | null
+  productPrice: string | null
+  productOldPrice: string | null
+  productThumbnail: string | null
+  productLink: string | null
+  productSource: string | null
+  productRating: number | null
+  productReviews: number | null
+  // Shared by every message in the same "tweak this product" thread (see
+  // ShoppingService.findProduct's continuation handling) — used as the
+  // saved Item's dedupKey instead of this message's own id, so "change it
+  // to red" updates one item rather than creating a new one per message.
+  productThreadId: string | null
   // True only for the item card a chat started via "Start a chat about
   // this" is seeded with — Chat.tsx renders that one as a compact item
   // card instead of the tool's normal (long) ResponseView.

@@ -21,12 +21,25 @@ import {
   PreviousRouteInfo,
   StepsPlannerService,
 } from '../steps-planner/steps-planner.service';
+import {
+  PreviousProductInfo,
+  ShoppingService,
+} from '../shopping/shopping.service';
 import { getToolCatalogEntry } from '../tools/tool-catalog';
 
 interface GpsLocation {
   lat: number;
   lng: number;
 }
+
+// Tools that all hand off to the SAME real-product-search pipeline
+// (ShoppingService) — the mechanism (confirm the product, real SerpApi
+// search, "change it to X" refinement, one saved item per product) is
+// genuinely identical between them, just a different entry point/branding,
+// so there's one shared implementation rather than a parallel one per
+// tool. Add a new tool here (not a new service) if it's the same kind of
+// "find me a real product" request.
+const SHOPPING_TOOL_SLUGS = new Set(['shopping', 'clothing']);
 
 export type ChatResult =
   { type: 'redirect'; suggestedTool: string } | { type: 'reply'; chat: Chat };
@@ -89,6 +102,7 @@ export class ChatsService {
     private readonly items: ItemsService,
     private readonly uploads: UploadsService,
     private readonly stepsPlanner: StepsPlannerService,
+    private readonly shopping: ShoppingService,
   ) {}
 
   private isImageAttachment(attachment: MessageAttachment): boolean {
@@ -226,6 +240,20 @@ export class ChatsService {
     return null;
   }
 
+  // The last real product found in this chat, if any — lets a follow-up
+  // like "change it to red" continue updating that same product instead of
+  // ShoppingService treating it as an unrelated new search (see
+  // PreviousProductInfo/findProduct).
+  private findPreviousProduct(messages: Message[]): PreviousProductInfo | null {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const candidate = messages[i];
+      if (candidate.role === MessageRole.ASSISTANT && candidate.productTitle) {
+        return { threadId: candidate.productThreadId ?? candidate.id };
+      }
+    }
+    return null;
+  }
+
   // Enriches already-saved messages with a fresh presigned view url per
   // attachment, in place, for the response the frontend renders a thumbnail
   // from (see Message.attachments' `url` field) — never persisted, computed
@@ -284,22 +312,36 @@ export class ChatsService {
             assistantMessageId,
           )
         : null;
+    // Shopping likewise skips generateReply — see routeResult's identical
+    // comment.
+    const shoppingResult =
+      SHOPPING_TOOL_SLUGS.has(toolSlug)
+        ? await this.shopping.findProduct(
+            firstMessage,
+            userId,
+            chatId,
+            userCountry,
+            assistantMessageId,
+          )
+        : null;
     const replyContent = routeResult
       ? routeResult.replyText
-      : await this.openai.generateReply({
-          toolSlug,
-          message: firstMessage,
-          history: [],
-          userId,
-          chatId,
-          messageId: assistantMessageId,
-          userCountry,
-          attachments: await this.resolveAttachmentsForVision(attachments),
-          itemContext: this.combineContext(
-            this.buildItemContext(attachedItems),
-            this.describeNonImageAttachments(attachments),
-          ),
-        });
+      : shoppingResult
+        ? shoppingResult.replyText
+        : await this.openai.generateReply({
+            toolSlug,
+            message: firstMessage,
+            history: [],
+            userId,
+            chatId,
+            messageId: assistantMessageId,
+            userCountry,
+            attachments: await this.resolveAttachmentsForVision(attachments),
+            itemContext: this.combineContext(
+              this.buildItemContext(attachedItems),
+              this.describeNonImageAttachments(attachments),
+            ),
+          });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     const chat = this.chatsRepository.create({
       id: chatId,
@@ -326,6 +368,15 @@ export class ChatsService {
           routeStartLabel: routeResult?.startLabel ?? null,
           routeDestinationLabel: routeResult?.destinationLabel ?? null,
           routeThreadId: routeResult?.routeThreadId ?? null,
+          productTitle: shoppingResult?.productTitle ?? null,
+          productPrice: shoppingResult?.productPrice ?? null,
+          productOldPrice: shoppingResult?.productOldPrice ?? null,
+          productThumbnail: shoppingResult?.productThumbnail ?? null,
+          productLink: shoppingResult?.productLink ?? null,
+          productSource: shoppingResult?.productSource ?? null,
+          productRating: shoppingResult?.productRating ?? null,
+          productReviews: shoppingResult?.productReviews ?? null,
+          productThreadId: shoppingResult?.productThreadId ?? null,
         },
       ],
     });
@@ -428,27 +479,48 @@ export class ChatsService {
             this.findPreviousRoute(chat.messages),
           )
         : null;
+    // Shopping likewise skips generateReply — see createChat's identical
+    // comment.
+    const shoppingResult =
+      SHOPPING_TOOL_SLUGS.has(chat.toolSlug)
+        ? await this.shopping.findProduct(
+            content,
+            userId,
+            chat.id,
+            userCountry,
+            assistantMessageId,
+            chat.messages.map((message) => ({
+              role: message.role,
+              content: message.isItemCard
+                ? wrapItemCardContent(message.content)
+                : message.content,
+            })),
+            this.findPreviousProduct(chat.messages),
+          )
+        : null;
     const replyContent = routeResult
       ? routeResult.replyText
-      : await this.openai.generateReply({
-          toolSlug: chat.toolSlug,
-          message: content,
-          history: chat.messages.map((message) => ({
-            role: message.role,
-            content: message.isItemCard
-              ? wrapItemCardContent(message.content)
-              : message.content,
-          })),
-          userId,
-          chatId: chat.id,
-          messageId: assistantMessageId,
-          userCountry,
-          attachments: await this.resolveAttachmentsForVision(attachments),
-          itemContext: this.combineContext(
-            this.buildItemContext(attachedItems),
-            this.describeNonImageAttachments(attachments),
-          ),
-        });
+      : shoppingResult
+        ? shoppingResult.replyText
+        : await this.openai.generateReply({
+            toolSlug: chat.toolSlug,
+            message: content,
+            history: chat.messages.map((message) => ({
+              role: message.role,
+              content: message.isItemCard
+                ? wrapItemCardContent(message.content)
+                : message.content,
+            })),
+            userId,
+            chatId: chat.id,
+            messageId: assistantMessageId,
+            userCountry,
+            attachments: await this.resolveAttachmentsForVision(attachments),
+            itemContext: this.combineContext(
+              this.buildItemContext(attachedItems),
+              this.describeNonImageAttachments(attachments),
+            ),
+          });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
     await this.messagesRepository.save([
       this.messagesRepository.create({
@@ -471,6 +543,15 @@ export class ChatsService {
         routeStartLabel: routeResult?.startLabel ?? null,
         routeDestinationLabel: routeResult?.destinationLabel ?? null,
         routeThreadId: routeResult?.routeThreadId ?? null,
+        productTitle: shoppingResult?.productTitle ?? null,
+        productPrice: shoppingResult?.productPrice ?? null,
+        productOldPrice: shoppingResult?.productOldPrice ?? null,
+        productThumbnail: shoppingResult?.productThumbnail ?? null,
+        productLink: shoppingResult?.productLink ?? null,
+        productSource: shoppingResult?.productSource ?? null,
+        productRating: shoppingResult?.productRating ?? null,
+        productReviews: shoppingResult?.productReviews ?? null,
+        productThreadId: shoppingResult?.productThreadId ?? null,
       }),
     ]);
     // Preview reflects what the user asked, not the reply — the reply may
