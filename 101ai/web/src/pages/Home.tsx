@@ -212,6 +212,13 @@ function Home() {
             })}
           </div>
         )}
+
+        <p className="mt-10 text-center text-sm text-slate-600">
+          Can't find a tool?{' '}
+          <Link to="/settings/recommend-tool" className="underline">
+            Make a suggestion
+          </Link>
+        </p>
       </div>
     </main>
   )

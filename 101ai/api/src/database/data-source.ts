@@ -4,6 +4,7 @@ import { User } from '../users/user.entity';
 import { Chat } from '../chats/chat.entity';
 import { Message } from '../chats/message.entity';
 import { Item } from '../items/item.entity';
+import { Suggestion } from '../suggestions/suggestion.entity';
 
 // DATABASE_URL (Neon, etc.) takes priority over discrete host/port/user/pass
 // — the latter is only for local Docker Compose Postgres.
@@ -24,6 +25,6 @@ const connectionOptions: DataSourceOptions = process.env.DATABASE_URL
 
 export default new DataSource({
   ...connectionOptions,
-  entities: [User, Chat, Message, Item],
+  entities: [User, Chat, Message, Item, Suggestion],
   migrations: ['src/database/migrations/*.ts'],
 });

@@ -8,7 +8,7 @@ import { useAuth } from '../hooks/useAuth'
 function Recent() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { data: chats = [] } = useQuery({
+  const { data: chats = [], error, refetch } = useQuery({
     queryKey: ['chats'],
     queryFn: getAllChats,
     enabled: !!user,
@@ -22,7 +22,14 @@ function Recent() {
 
       <h1 className="mt-4 font-display text-2xl font-semibold text-slate-900">Recent</h1>
 
-      {chats.length === 0 ? (
+      {error ? (
+        <div className="mt-2">
+          <p className="text-red-600">Couldn't load your recent chats.</p>
+          <button type="button" onClick={() => refetch()} className="mt-2 text-sm font-semibold text-slate-900 underline">
+            Try again
+          </button>
+        </div>
+      ) : chats.length === 0 ? (
         <p className="mt-2 text-slate-600">Your recently used tools will show up here.</p>
       ) : (
         <div className="mt-6 space-y-2">

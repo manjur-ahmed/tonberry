@@ -311,11 +311,20 @@ function Chat() {
     setPendingItems((current) => current.filter((item) => item.id !== itemId))
   }
 
-  const { data: chat, isLoading } = useQuery({
+  const { data: chat, isLoading, error: chatError } = useQuery({
     queryKey: ['chat', chatId],
     queryFn: () => getChat(chatId!),
     enabled: !!chatId && !isNewChat,
   })
+  // getChat throws a bare `Error("...: ${status}")` (see lib/chats.ts), no
+  // structured status field — same string-matching approach AdminUsage
+  // already uses for its own 403. A 401 here means the token's missing or
+  // expired, not that the chat itself doesn't exist, so it gets its own
+  // redirect instead of the generic "couldn't load this chat" below.
+  const isUnauthorized = chatError instanceof Error && chatError.message.includes('401')
+  useEffect(() => {
+    if (isUnauthorized) navigate('/sign-in', { replace: true })
+  }, [isUnauthorized, navigate])
 
   const hasMemory = user?.plan === 'plus' || user?.plan === 'premium'
 
@@ -413,6 +422,10 @@ function Chat() {
               productRating: null,
               productReviews: null,
               productThreadId: null,
+              // A user message never carries a reaction — only an
+              // assistant reply can be thumbs up/down'd (see
+              // MessageActions.tsx).
+              feedback: null,
               // previewUrls (the local blobs, shown instantly) stand in for
               // the real presigned view urls until onSuccess replaces this
               // whole optimistic message with the server's actual response.
@@ -540,9 +553,17 @@ function Chat() {
   }
 
   if (!chat) {
+    // Redirect effect above is about to fire — avoid flashing the error
+    // copy in the instant before it does.
+    if (isUnauthorized) return null
+    // Reachable once !isNewChat and isLoading is false with no chat: that's
+    // always a failed fetch (getChat throws on any non-ok response,
+    // including a real 404 — see lib/chats.ts), never a legitimate "loaded
+    // successfully, chat is just missing" state — so one message covers
+    // both a genuinely-missing chat and a 500.
     return (
       <main className="px-4 py-6">
-        <p className="text-slate-600">Chat not found.</p>
+        <p className="text-slate-600">Couldn't load this chat.</p>
       </main>
     )
   }

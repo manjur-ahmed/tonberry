@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Crown,
   Brain,
+  Lightbulb,
   Lock,
   LogOut,
   Mail,
@@ -182,6 +183,12 @@ function Settings() {
         <Link to="/settings/password" className="flex items-center gap-3 px-4 py-3.5">
           <Lock className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
           <span className="flex-1 text-sm font-medium text-slate-900">Change password</span>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+        </Link>
+
+        <Link to="/settings/recommend-tool" className="flex items-center gap-3 px-4 py-3.5">
+          <Lightbulb className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
+          <span className="flex-1 text-sm font-medium text-slate-900">Recommend a tool</span>
           <ChevronRight className="h-4 w-4 text-slate-300" />
         </Link>
 

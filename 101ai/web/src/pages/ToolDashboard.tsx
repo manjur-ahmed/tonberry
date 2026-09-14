@@ -141,13 +141,23 @@ function ToolDashboard() {
     tool && DENSE_ITEM_TOOLS.has(tool.slug) ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-2 gap-4'
   const visibleTabs = tool?.hideChatsTab ? tabs.filter((label) => label !== 'Chats') : tabs
 
-  const { data: chats = [], isLoading: isChatsLoading } = useQuery({
+  const {
+    data: chats = [],
+    isLoading: isChatsLoading,
+    error: chatsError,
+    refetch: refetchChats,
+  } = useQuery({
     queryKey: ['chats', tool?.slug],
     queryFn: () => getChatsForTool(tool!.slug),
     enabled: !!tool && !!user,
   })
 
-  const { data: items = [], isLoading: isItemsLoading } = useQuery({
+  const {
+    data: items = [],
+    isLoading: isItemsLoading,
+    error: itemsError,
+    refetch: refetchItems,
+  } = useQuery({
     queryKey: ['items', tool?.slug],
     queryFn: () => getItemsForTool(tool!.slug),
     enabled: !!tool && !!user,
@@ -443,6 +453,13 @@ function ToolDashboard() {
               <Skeleton className="h-32" />
               <Skeleton className="h-32" />
             </div>
+          ) : itemsError ? (
+            <div>
+              <p className="text-red-600">Couldn't load your items.</p>
+              <button type="button" onClick={() => refetchItems()} className="mt-2 font-semibold text-slate-900 underline">
+                Try again
+              </button>
+            </div>
           ) : items.length === 0 ? (
             <p>No items saved yet. Anything worth keeping from a chat will show up here.</p>
           ) : (
@@ -489,6 +506,13 @@ function ToolDashboard() {
             <div className="space-y-2">
               <Skeleton className="h-16" />
               <Skeleton className="h-16" />
+            </div>
+          ) : chatsError ? (
+            <div>
+              <p className="text-red-600">Couldn't load your chats.</p>
+              <button type="button" onClick={() => refetchChats()} className="mt-2 font-semibold text-slate-900 underline">
+                Try again
+              </button>
             </div>
           ) : chats.length === 0 ? (
             <p>No chats yet. Start one to see it here.</p>

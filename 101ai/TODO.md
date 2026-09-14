@@ -65,7 +65,7 @@
 - [x] Design different chat UI for different tools (not all might be a chat)
 - [x] Set up items to be sent to different tools (e.g. Word Helper might save an item called "cake" which can then be sent to the Cooking tool — everything interconnected)
 - [x] Fix file/image uploader (currently not working — dead "Attach" button in both the chat composer and the dashboard) and roll it out across all chats
-- [ ] Need a "recommend tool" page
+- [x] Need a "recommend tool" page
 - [ ] Put in place per-plan usage limits (what a user can do based on which package/tier they're on)
 - [ ] Enable actually purchasing Plus/Premium — Pricing page has both permanently disabled ("Coming soon"), so every plan-gated feature (Memory, unlimited items) is currently unreachable by any real user
 - [ ] Fix the Memory toggle — Settings' toggle is local-only and never saved to the backend, while Chat's "Memory on/off" indicator instead reads off `user.plan`; the two are disconnected and neither can be legitimately exercised until Plus/Premium purchase exists
@@ -73,8 +73,8 @@
 - [x] Fix the "Copy" button on every structured-output tool's reply — it copies the raw JSON message content, not the rendered text (e.g. copying a diet plan pastes `{"kind":"plan",...}`). Fixed for Ad Creator specifically (see `onCopyTextChange` in responseViews.tsx/Chat.tsx — a ResponseView can report a plain-text override), but every other tool still has the underlying issue; worth going through and wiring the same override wherever a copy-pasteable result actually matters
 - [ ] Wire up or remove the dashboard's "Examples" tab — always shows the same placeholder text for every tool, no real data source
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
-- [ ] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
-- [ ] Surface query errors instead of treating them as empty states — the dashboard, Recent, and Chat pages all drop fetch errors, so a failed request looks identical to "nothing here yet" (and a missing chat looks like "not found" even when it's really an auth/server error)
+- [x] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
+- [x] Surface query errors instead of treating them as empty states — the dashboard, Recent, and Chat pages all drop fetch errors, so a failed request looks identical to "nothing here yet" (and a missing chat looks like "not found" even when it's really an auth/server error)
 - [ ] Add loading state UIs across the site — skeletons/spinners exist on some pages (Home, ToolDashboard, ToolPage, Chat) but others (Recent, Settings) show nothing while fetching, so slow requests look broken instead of loading; make coverage consistent everywhere data is fetched
 - [ ] Reconcile the dark-mode toggle — implemented two different, both non-functional ways (onboarding saves it to the backend, Settings only touches localStorage), and nothing in the app actually applies a dark theme anywhere yet
 - [ ] Improve the homepage search bar — currently a plain substring match on tool name/description with no clear ("x") button, no match highlighting, and no tolerance for typos or partial/out-of-order words
@@ -111,4 +111,4 @@
 
 ---
 
-**Progress: 30/98 tasks complete (31%)**
+**Progress: 44/98 tasks complete (45%)**
