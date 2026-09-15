@@ -4,7 +4,7 @@ import { Search } from 'lucide-react'
 import ToolCard from '../components/ToolCard'
 import ProgressRing from '../components/ProgressRing'
 import Skeleton from '../components/Skeleton'
-import { categories, getTool, tools, type Tool } from '../tools/registry'
+import { categories, getTool, visibleTools, type Tool } from '../tools/registry'
 import { useAuth } from '../hooks/useAuth'
 import { getSavedSlugs } from '../lib/savedTools'
 import { getPlan, plans } from '../lib/plans'
@@ -59,12 +59,17 @@ function Home() {
   const ringProgress = Math.max(0.04, dailyChatsUsed / dailyChatLimit)
 
   const isSearching = query.trim().length > 0
-  const savedTools = savedSlugs.map((slug) => getTool(slug)).filter((tool): tool is Tool => !!tool)
+  // savedSlugs can still name a since-hidden tool (e.g. News, pinned before
+  // it was taken out of circulation) — dropped here too, consistent with
+  // it no longer being something to pick from.
+  const savedTools = savedSlugs
+    .map((slug) => getTool(slug))
+    .filter((tool): tool is Tool => !!tool && !tool.hidden)
 
   const searchResults = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return []
-    return tools.filter(
+    return visibleTools.filter(
       (tool) => tool.name.toLowerCase().includes(q) || tool.description.toLowerCase().includes(q),
     )
   }, [query])
@@ -192,7 +197,7 @@ function Home() {
         ) : (
           <div className="mt-6 space-y-8">
             {categories.map((category) => {
-              const items = tools.filter((tool) => tool.category === category)
+              const items = visibleTools.filter((tool) => tool.category === category)
               if (items.length === 0) return null
 
               return (

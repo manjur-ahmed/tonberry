@@ -1,5 +1,6 @@
 import { API_URL, getToken } from './api'
 import type { NewsArticle } from './news'
+import type { YoutubeVideo } from './youtube'
 
 export interface Item {
   id: string
@@ -74,6 +75,9 @@ export async function upsertItemSection(
     sectionAction: 'new' | 'continue'
     // News only — see lib/news.ts's NewsArticle.
     articles?: NewsArticle[]
+    // science-explainer/history-helper/politics only — see
+    // lib/youtube.ts's YoutubeVideo.
+    video?: YoutubeVideo
   },
 ): Promise<Item> {
   const response = await authedFetch('/items/sections', {

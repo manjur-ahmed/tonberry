@@ -21,6 +21,18 @@ export interface NewsArticleSnapshot {
   publishedAt: string;
 }
 
+// Real video data for a science-explainer/history-helper/politics section
+// (see YoutubeClient/YoutubeController) — never authored or paraphrased by
+// the model. Only these three topic-explainer tools ever set this; every
+// other one (general-health, business-research, bills-utilities) just
+// never passes it, kept generic here rather than a per-tool parallel of
+// TopicSection/upsertSection.
+export interface YoutubeVideoSnapshot {
+  videoId: string;
+  title: string;
+  channelTitle: string;
+}
+
 // Item.data shape for science-explainer/history-helper — see upsertSection.
 // One item per chat rather than one per reply: a rabbit-hole conversation
 // covering several angles on one broad subject reads back as one document
@@ -29,6 +41,7 @@ export interface TopicSection {
   heading: string;
   body: string;
   articles?: NewsArticleSnapshot[];
+  video?: YoutubeVideoSnapshot;
 }
 
 export interface TopicItemData {
@@ -134,6 +147,11 @@ export class ItemsService {
       // whose articles from the original search are still the relevant
       // ones — no re-search happens for a continuation).
       articles?: NewsArticleSnapshot[];
+      // science-explainer/history-helper/politics only — see
+      // YoutubeVideoSnapshot. Same 'new'-only reasoning as articles: a
+      // 'continue' keeps whatever video the original section already
+      // resolved rather than re-searching.
+      video?: YoutubeVideoSnapshot;
     },
   ): Promise<Item> {
     const existing = await this.itemsRepository.findOne({
@@ -149,6 +167,7 @@ export class ItemsService {
             heading: params.sectionHeading,
             body: params.sectionBody,
             articles: params.articles,
+            video: params.video,
           },
         ],
       };
@@ -172,6 +191,7 @@ export class ItemsService {
         heading: params.sectionHeading,
         body: params.sectionBody,
         articles: params.articles,
+        video: params.video,
       });
     }
     existing.data = data;

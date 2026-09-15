@@ -28,6 +28,22 @@ class NewsArticleDto {
   publishedAt: string;
 }
 
+// science-explainer/history-helper/politics only — see YoutubeVideoSnapshot
+// (items.service.ts). Real video data the frontend already fetched from
+// YoutubeClient via YoutubeController, forwarded here just to be saved
+// alongside the section.
+class YoutubeVideoDto {
+  @IsString()
+  @MinLength(1)
+  videoId: string;
+
+  @IsString()
+  title: string;
+
+  @IsString()
+  channelTitle: string;
+}
+
 export class UpsertItemSectionDto {
   @IsString()
   @MinLength(1)
@@ -56,4 +72,9 @@ export class UpsertItemSectionDto {
   @ValidateNested({ each: true })
   @Type(() => NewsArticleDto)
   articles?: NewsArticleDto[];
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => YoutubeVideoDto)
+  video?: YoutubeVideoDto;
 }

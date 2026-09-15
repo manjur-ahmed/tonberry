@@ -40,7 +40,7 @@
   - [x] Budget Planner
   - [x] Career Planner
   - [x] Shopping
-  - [x] Clothing
+  - [x] Clothes (renamed from Clothing)
   - [x] Bills & Utilities (renamed from Insurance)
   - [x] General Health
   - [x] Diet
@@ -66,12 +66,12 @@
 - [x] Set up items to be sent to different tools (e.g. Word Helper might save an item called "cake" which can then be sent to the Cooking tool — everything interconnected)
 - [x] Fix file/image uploader (currently not working — dead "Attach" button in both the chat composer and the dashboard) and roll it out across all chats
 - [x] Need a "recommend tool" page
+- [x] Reorganize tool categories/visibility: renamed the "Education" category to "Learning" and moved Politics & Law into it, hid the News tool from Home's browse grid/search/category pickers for now (still reachable from any existing chat, just can't be started fresh), and renamed the Clothing tool to Clothes
 - [ ] Put in place per-plan usage limits (what a user can do based on which package/tier they're on)
 - [ ] Enable actually purchasing Plus/Premium — Pricing page has both permanently disabled ("Coming soon"), so every plan-gated feature (Memory, unlimited items) is currently unreachable by any real user
 - [ ] Fix the Memory toggle — Settings' toggle is local-only and never saved to the backend, while Chat's "Memory on/off" indicator instead reads off `user.plan`; the two are disconnected and neither can be legitimately exercised until Plus/Premium purchase exists
 - [x] Persist thumbs up/down message feedback — currently local UI state only, discarded on remount, no backend call
 - [x] Fix the "Copy" button on every structured-output tool's reply — it copies the raw JSON message content, not the rendered text (e.g. copying a diet plan pastes `{"kind":"plan",...}`). Fixed for Ad Creator specifically (see `onCopyTextChange` in responseViews.tsx/Chat.tsx — a ResponseView can report a plain-text override), but every other tool still has the underlying issue; worth going through and wiring the same override wherever a copy-pasteable result actually matters
-- [ ] Wire up or remove the dashboard's "Examples" tab — always shows the same placeholder text for every tool, no real data source
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
 - [x] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
 - [x] Surface query errors instead of treating them as empty states — the dashboard, Recent, and Chat pages all drop fetch errors, so a failed request looks identical to "nothing here yet" (and a missing chat looks like "not found" even when it's really an auth/server error)
@@ -79,7 +79,7 @@
 - [ ] Reconcile the dark-mode toggle — implemented two different, both non-functional ways (onboarding saves it to the backend, Settings only touches localStorage), and nothing in the app actually applies a dark theme anywhere yet
 - [ ] Improve the homepage search bar — currently a plain substring match on tool name/description with no clear ("x") button, no match highlighting, and no tolerance for typos or partial/out-of-order words
 - [ ] Add free-trial/upgrade prompts around the site — today the only nudge is `ItemLimitBanner`, shown reactively once a free user's item cap is already hit; add proactive messaging elsewhere (Home, dashboard, chat) to drive Plus/Premium upgrades. Depends on enabling actual purchasing (see Pricing "Coming soon" item above) — no point prompting an upgrade that can't be completed
-- [ ] Embed relevant YouTube videos in Science Explainer/History Helper chats so the user can watch without leaving the app. Needs a new YouTube Data API v3 key (Google Cloud Console, separate from the existing Google OAuth credentials) — the model must never be trusted to name a specific video/ID/URL directly (a strong hallucination risk, worse than Quote Finder's case: a fabricated video ID either fails outright or, worse, resolves to a real but unrelated video). Safe approach: the model only produces a search query; the backend resolves it via a real YouTube Data API search call server-side and embeds whatever actually comes back (or nothing, if no good match) — same "never trust the model for a URL" principle already applied to Quote Finder's verify link. Free quota is ~100 searches/day at the default 10,000-unit daily cap (100 units per search.list call)
+- [x] Embed relevant YouTube videos in chats so the user can watch without leaving the app — done for Science Explainer, History Helper, Politics & Law, Tech, Home, Car, and DIY (broader than the original Science/History-only scope, extended to every tool where a demonstration/explainer video genuinely helps). The model only ever produces a search query (`videoKeywords`) — never a video ID/URL — and the backend resolves it via a real YouTube Data API v3 search call (`YoutubeClient`), embedding whatever actually comes back or nothing if there's no good match, same "never trust the model for a URL" principle already applied to Quote Finder's verify link. Tech/Home/Car/DIY additionally cache the resolved video client-side per guide (`resolvedGuideVideos.ts`) so a multi-reply refinement only ever triggers one real search, not one per reply. `YOUTUBE_API_KEY` is live in `.env`/Terraform (free tier ~100 searches/day at the default 10,000-unit daily cap)
 
 ## Design & Branding
 - [ ] Improve font and branding
@@ -111,4 +111,4 @@
 
 ---
 
-**Progress: 44/98 tasks complete (45%)**
+**Progress: 46/98 tasks complete (47%)**

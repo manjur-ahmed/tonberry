@@ -5,7 +5,7 @@ import { useMutation } from '@tanstack/react-query'
 import type { Item } from '../lib/items'
 import { startChatFromItem } from '../lib/chats'
 import { getResponseView } from '../tools/responseViews'
-import { categories, getTool, tools, type Tool } from '../tools/registry'
+import { categories, getTool, visibleTools, type Tool } from '../tools/registry'
 import ToolCard from './ToolCard'
 
 // 'destination' is the "open in [tool] chat" vs "open in another tool"
@@ -191,7 +191,7 @@ function ToolPickerSheet({ isPending, isError, onSelect, onClose }: ToolPickerSh
         <div className="@container flex-1 overflow-y-auto px-6 py-4">
           <div className="space-y-8">
             {categories.map((category) => {
-              const items = tools.filter((tool) => tool.category === category)
+              const items = visibleTools.filter((tool) => tool.category === category)
               if (items.length === 0) return null
 
               return (

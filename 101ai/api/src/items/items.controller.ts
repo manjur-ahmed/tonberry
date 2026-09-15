@@ -45,6 +45,7 @@ export class ItemsController {
         sectionBody: dto.sectionBody,
         sectionAction: dto.sectionAction,
         articles: dto.articles,
+        video: dto.video,
       },
     );
   }

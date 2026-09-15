@@ -1,5 +1,5 @@
 export const categories = [
-  'Education',
+  'Learning',
   'Health & Wellbeing',
   'Shopping',
   'How-to & Fixes',
@@ -19,7 +19,7 @@ export type ToolCategory = (typeof categories)[number]
 // that needs a tool's category color, without dragging react-refresh's
 // only-export-components rule into it.
 export const categoryStyles: Record<ToolCategory, { icon: string; shadow: string }> = {
-  Education: { icon: 'bg-sky-100', shadow: 'bg-sky-200' },
+  Learning: { icon: 'bg-sky-100', shadow: 'bg-sky-200' },
   'Entertainment & Media': { icon: 'bg-fuchsia-100', shadow: 'bg-fuchsia-200' },
   Business: { icon: 'bg-indigo-100', shadow: 'bg-indigo-200' },
   'Personal Finance': { icon: 'bg-rose-100', shadow: 'bg-rose-200' },
@@ -74,19 +74,25 @@ export interface Tool {
   // answer depends on where the user actually is (Steps Planner's routes,
   // Activity Planner's nearby venues), not just their country.
   needsLocation?: boolean
+  // Hides the tool from Home's browse grid/search and the "send to another
+  // tool" picker (see visibleTools below) — for a tool taken out of
+  // circulation without breaking existing chats/items that still reference
+  // its slug (getTool still resolves it normally, so old News chats/items
+  // keep rendering fine; it just can't be started fresh).
+  hidden?: boolean
 }
 
 // Placeholder catalog — swap these for the real tools once decided.
 // Each tool gets its own route (/tools/:slug) and, eventually, its own
 // custom UI component rather than a generic chat box.
 export const tools: Tool[] = [
-  // Education
+  // Learning
   {
     slug: 'writer',
     name: 'Writer',
     description: 'Note taking or draft a piece of writing.',
     icon: '✍️',
-    category: 'Education',
+    category: 'Learning',
     hideChatsTab: true,
     composeLabel: 'New Note',
     multiActionCompose: true,
@@ -100,28 +106,37 @@ export const tools: Tool[] = [
     name: 'Maths Solver',
     description: 'Work through a maths problem step by step.',
     icon: '➗',
-    category: 'Education',
+    category: 'Learning',
   },
   {
     slug: 'word-helper',
     name: 'Word Helper',
     description: 'Find the right word or check its meaning.',
     icon: '🔤',
-    category: 'Education',
+    category: 'Learning',
   },
   {
     slug: 'science-explainer',
     name: 'Science Explainer',
     description: 'Explain a science concept in plain language.',
     icon: '🔬',
-    category: 'Education',
+    category: 'Learning',
   },
   {
     slug: 'history-helper',
     name: 'History Helper',
     description: 'Get context and explanations on historical events.',
     icon: '📜',
-    category: 'Education',
+    category: 'Learning',
+  },
+  {
+    slug: 'politics',
+    name: 'Politics & Law',
+    description: 'Understand a political topic or policy.',
+    icon: '🏛️',
+    category: 'Learning',
+    warning:
+      "For a specific legal situation, speak to a qualified lawyer. Any views expressed here are the AI's own and don't represent the company.",
   },
 
   // Entertainment & Media
@@ -230,7 +245,7 @@ export const tools: Tool[] = [
   },
   {
     slug: 'clothing',
-    name: 'Clothing',
+    name: 'Clothes',
     description: 'Get outfit and clothing suggestions.',
     icon: '👕',
     category: 'Shopping',
@@ -322,15 +337,6 @@ export const tools: Tool[] = [
 
   // Politics & Current Affairs
   {
-    slug: 'politics',
-    name: 'Politics & Law',
-    description: 'Understand a political topic or policy.',
-    icon: '🏛️',
-    category: 'Politics & Current Affairs',
-    warning:
-      "For a specific legal situation, speak to a qualified lawyer. Any views expressed here are the AI's own and don't represent the company.",
-  },
-  {
     slug: 'news',
     name: 'News',
     description: 'Get a summary of a news topic.',
@@ -338,6 +344,10 @@ export const tools: Tool[] = [
     category: 'Politics & Current Affairs',
     warning:
       "This isn't a live news feed — answers come from the AI's own knowledge, which has a training cutoff and can be wrong or out of date. Always check a real news source for anything current or important.",
+    // Taken out of circulation for now — kept in the registry (rather than
+    // deleted outright) so existing News chats/items still resolve via
+    // getTool and keep rendering normally; see the `hidden` field's comment.
+    hidden: true,
   },
 
   // How-to & Fixes
@@ -378,3 +388,10 @@ export const tools: Tool[] = [
 export function getTool(slug: string): Tool | undefined {
   return tools.find((tool) => tool.slug === slug)
 }
+
+// Everywhere a tool is listed for browsing/picking (Home's grid/search,
+// ItemDetailModal's "send to another tool" picker) should use this instead
+// of the raw `tools` array, so a `hidden` tool (see the Tool interface)
+// drops out of discovery while still resolving normally via getTool for
+// anything that already references its slug (an existing chat/item).
+export const visibleTools = tools.filter((tool) => !tool.hidden)

@@ -365,8 +365,51 @@ const QUOTE_FINDER_SCHEMA: ResponseSchema = {
 // otherwise ignored once the item exists. Same 'kind' escape hatch as every
 // other tool, for the same reason: strict json_schema can't leave the rest
 // null for a plain "hi" or a request that hasn't named a topic yet.
+//
+// videoKeywords is science-explainer/history-helper's counterpart to
+// NEWS_SCHEMA's searchKeywords — a short, real, search-engine-style phrase,
+// never a URL or video ID (see YoutubeClient/tool-config.ts's
+// buildTopicExplainerTask for why: a model-generated video ID is exactly
+// the kind of thing that gets hallucinated). bills-utilities used to share
+// this exact object too, but gets its own BILLS_UTILITIES_SCHEMA below
+// instead now that this one carries video behaviour it shouldn't inherit.
 const TOPIC_EXPLAINER_SCHEMA: ResponseSchema = {
   name: 'topic_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+      videoKeywords: { type: ['string', 'null'] },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+      'videoKeywords',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// bills-utilities' own copy of what TOPIC_EXPLAINER_SCHEMA used to be
+// before it grew video support — split off rather than left shared, so
+// bills-utilities (no real use for a video suggestion) doesn't inherit
+// videoKeywords along with science-explainer/history-helper. Same
+// divergence pattern as GENERAL_HEALTH_SCHEMA/BUSINESS_RESEARCH_SCHEMA/
+// POLITICS_SCHEMA (see the comment on POLITICS_SCHEMA).
+const BILLS_UTILITIES_SCHEMA: ResponseSchema = {
+  name: 'bills_utilities_explanation',
   schema: {
     type: 'object',
     properties: {
@@ -392,13 +435,13 @@ const TOPIC_EXPLAINER_SCHEMA: ResponseSchema = {
   },
 };
 
-// Structurally identical to TOPIC_EXPLAINER_SCHEMA — kept as its own
-// object rather than reused by politics too, since these tools' schemas
-// may need to diverge independently later even though they're currently
-// the same shape. The frontend's TopicExplainerResponse/ItemView
-// components are still shared across all three, since that's just
-// rendering logic keyed off the (currently identical) JSON shape, not a
-// contract each tool needs to keep in lockstep.
+// Structurally identical to TOPIC_EXPLAINER_SCHEMA (video support
+// included) — kept as its own object rather than reused by politics too,
+// since these tools' schemas may need to diverge independently later even
+// though they're currently the same shape. The frontend's
+// TopicExplainerResponse/ItemView components are still shared across all
+// three, since that's just rendering logic keyed off the (currently
+// identical) JSON shape, not a contract each tool needs to keep in lockstep.
 const POLITICS_SCHEMA: ResponseSchema = {
   name: 'politics_explanation',
   schema: {
@@ -413,6 +456,7 @@ const POLITICS_SCHEMA: ResponseSchema = {
         type: ['string', 'null'],
         enum: ['new', 'continue', null],
       },
+      videoKeywords: { type: ['string', 'null'] },
     },
     required: [
       'kind',
@@ -421,6 +465,7 @@ const POLITICS_SCHEMA: ResponseSchema = {
       'sectionHeading',
       'sectionBody',
       'sectionAction',
+      'videoKeywords',
     ],
     additionalProperties: false,
   },
@@ -476,10 +521,23 @@ const NEWS_SCHEMA: ResponseSchema = {
 // skeleton for a tool whose requirements genuinely go beyond a formatting
 // swap — e.g. politics needing a no-legal-advice/no-loophole-finding
 // guardrail neither science nor history needs.
+// videoKeywords guidance, shared verbatim by every buildTopicExplainerTask
+// caller that opts in (science-explainer, history-helper, politics — see
+// their `videoGuidance: true`). Mirrors NEWS_SCHEMA's searchKeywords
+// guidance: a short, real, search-engine-style phrase, never a URL or video
+// ID — the model choosing a specific video would be exactly the kind of
+// thing that gets hallucinated (a plausible-looking but wrong or fabricated
+// video), so it only ever proposes what to search for. The backend resolves
+// it via a real YouTube Data API search (see YoutubeClient) and embeds
+// whatever actually comes back, or nothing if no good match.
+const VIDEO_KEYWORDS_GUIDANCE =
+  'videoKeywords is a short, real, search-engine-style phrase (a few words, not a full sentence) most likely to surface a genuinely helpful, on-topic real video for THIS specific point — a demonstration, documentary clip, or explainer that would actually help someone understand it visually. Leave it null if no real video would meaningfully add anything here.';
+
 function buildTopicExplainerTask(
   subjectNoun: string,
   formattingInstruction: string,
   extraGuidance?: string,
+  videoGuidance?: boolean,
 ): string {
   return [
     `You help the user understand a ${subjectNoun} topic they ask about, potentially across a long back-and-forth covering several angles on it.`,
@@ -490,6 +548,7 @@ function buildTopicExplainerTask(
     'sectionBody is the actual explanation, in plain, everyday language suitable for a reading age around 11-12: short, direct sentences, no jargon, no assumed background knowledge. When sectionAction is "continue", write only the NEW content to add — it gets appended after what you already said, so don\'t repeat the earlier part.',
     formattingInstruction,
     extraGuidance,
+    videoGuidance ? VIDEO_KEYWORDS_GUIDANCE : undefined,
     "Use as much of your available response length as you need to explain clearly and completely — don't cut it artificially short, but don't pad it with filler either.",
     "If you don't actually know the topic well, say so honestly in `sectionBody` rather than inventing a plausible-sounding but wrong explanation.",
   ]
@@ -717,8 +776,16 @@ const TECH_GUIDE_SCHEMA: ResponseSchema = {
       guideKey: { type: ['string', 'null'] },
       guideTitle: { type: ['string', 'null'] },
       steps: { type: 'array', items: { type: 'string' } },
+      videoKeywords: { type: ['string', 'null'] },
     },
-    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    required: [
+      'kind',
+      'reply',
+      'guideKey',
+      'guideTitle',
+      'steps',
+      'videoKeywords',
+    ],
     additionalProperties: false,
   },
 };
@@ -735,8 +802,16 @@ const HOME_GUIDE_SCHEMA: ResponseSchema = {
       guideKey: { type: ['string', 'null'] },
       guideTitle: { type: ['string', 'null'] },
       steps: { type: 'array', items: { type: 'string' } },
+      videoKeywords: { type: ['string', 'null'] },
     },
-    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    required: [
+      'kind',
+      'reply',
+      'guideKey',
+      'guideTitle',
+      'steps',
+      'videoKeywords',
+    ],
     additionalProperties: false,
   },
 };
@@ -753,8 +828,16 @@ const CAR_GUIDE_SCHEMA: ResponseSchema = {
       guideKey: { type: ['string', 'null'] },
       guideTitle: { type: ['string', 'null'] },
       steps: { type: 'array', items: { type: 'string' } },
+      videoKeywords: { type: ['string', 'null'] },
     },
-    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    required: [
+      'kind',
+      'reply',
+      'guideKey',
+      'guideTitle',
+      'steps',
+      'videoKeywords',
+    ],
     additionalProperties: false,
   },
 };
@@ -771,8 +854,16 @@ const DIY_GUIDE_SCHEMA: ResponseSchema = {
       guideKey: { type: ['string', 'null'] },
       guideTitle: { type: ['string', 'null'] },
       steps: { type: 'array', items: { type: 'string' } },
+      videoKeywords: { type: ['string', 'null'] },
     },
-    required: ['kind', 'reply', 'guideKey', 'guideTitle', 'steps'],
+    required: [
+      'kind',
+      'reply',
+      'guideKey',
+      'guideTitle',
+      'steps',
+      'videoKeywords',
+    ],
     additionalProperties: false,
   },
 };
@@ -1120,6 +1211,7 @@ function buildStepGuideTask(
     'A single chat can end up covering more than one unrelated thing — guideKey is how you tell them apart. Assign a short, stable, lowercase-hyphenated guideKey the first time it comes up, and reuse that EXACT SAME guideKey on every later reply about the same thing, however much the steps change. Only assign a new guideKey when they bring up something genuinely different, unrelated.',
     'guideTitle should describe it plainly — update it if things become clearer as you go.',
     'steps is the ordered list of things to do, clear enough to follow without confusion — the CURRENT best steps given everything you know now, not a running log of everything ever suggested.',
+    `${VIDEO_KEYWORDS_GUIDANCE} Reuse the exact same videoKeywords phrase across replies about the same guideKey unless the actual fix or approach has fundamentally changed — this is the same problem being refined, not a new one needing a different video every time.`,
     safetyGuidance,
     "If you're not confident about something, say so honestly rather than inventing a plausible-sounding answer.",
   ]
@@ -1231,6 +1323,8 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     task: buildTopicExplainerTask(
       'science',
       'In sectionBody, wrap important keywords and concepts — the specific terms someone would actually want to remember or look up, e.g. **photon**, **refraction** — in **double asterisks** to bold them. Be selective: bold the handful of terms that matter most, not every technical-sounding word.',
+      undefined,
+      true,
     ),
     responseSchema: TOPIC_EXPLAINER_SCHEMA,
   },
@@ -1239,6 +1333,8 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     task: buildTopicExplainerTask(
       'history',
       'In sectionBody, wrap important dates in **double asterisks** to bold them (e.g. **1789**, **14 July 1789**), and wrap important names of people in *single asterisks* to italicize them (e.g. *Napoleon Bonaparte*). Be selective: mark the handful of dates and names that matter most to this specific point, not every one mentioned in passing.',
+      undefined,
+      true,
     ),
     responseSchema: TOPIC_EXPLAINER_SCHEMA,
   },
@@ -1253,7 +1349,7 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'In sectionBody, wrap important terms, provider types, or policy/tariff names in **double asterisks** to bold them (e.g. **third-party fire and theft**, **standing charge**). Be selective: bold the handful of specifics that matter most, not every term.',
       "You have no live pricing or deal data, and providers/tariffs change constantly — never state a specific current price, deal, or named real provider as if it's confirmed accurate today; if you mention real providers or typical costs, frame them as general/illustrative and say plainly that the user should compare current real quotes themselves (e.g. via a comparison site) rather than treating anything here as an actual quote. How bills/insurance work — providers, regulation, typical cover types, switching processes — varies a lot by country; if the user's country is given below, ground your answer in that country's real system by name (e.g. \"In the UK, energy suppliers are regulated by Ofgem...\") rather than defaulting to assumptions from any one place, and ask which country they mean if it's not given and genuinely affects the answer.",
     ),
-    responseSchema: TOPIC_EXPLAINER_SCHEMA,
+    responseSchema: BILLS_UTILITIES_SCHEMA,
   },
   cooking: {
     model: 'gpt-4o-mini',
@@ -1353,6 +1449,7 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'politics, government, or law',
       'In sectionBody, wrap important law, act, or policy names in **double asterisks** to bold them (e.g. **Human Rights Act 1998**). Be selective: bold the specific laws or policies that matter most to this point, not every legal term mentioned in passing.',
       "You are not a lawyer and this is not legal advice — never help someone find a loophole, workaround, or way to get around or exploit a law; if asked to, decline plainly and explain why, without being preachy about it. Where it's genuinely relevant, mention when a law or policy was introduced and one true, specific, interesting fact about it (e.g. a notable court case that tested it, or whether it's still actively enforced or has fallen out of use) — but only state a specific date, case, or fact if you're actually confident it's accurate; speak in general terms or leave it out rather than inventing a specific-sounding detail if you're not sure. On genuinely contested political topics, lay out the different perspectives and arguments fairly rather than taking a side or pushing a particular viewpoint. If a question depends on which country's law or system applies and you don't know (no country context given below, or it's a topic outside their country), ask which country they mean via `kind: \"chat\"` rather than silently assuming one.",
+      true,
     ),
     responseSchema: POLITICS_SCHEMA,
   },

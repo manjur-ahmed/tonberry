@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import DefaultResponse from '../default/ResponseView'
+import YoutubeEmbed from '../../components/YoutubeEmbed'
 import { upsertItemSection, ItemLimitReachedError } from '../../lib/items'
+import { fetchYoutubeVideo, type YoutubeVideo } from '../../lib/youtube'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { renderInline } from './renderInline'
@@ -20,15 +22,18 @@ interface TopicTurn {
   sectionHeading: string
   sectionBody: string
   sectionAction: 'new' | 'continue'
+  videoKeywords: string | null
 }
 
 // The full saved item — {title, sections} — fed back through this same
 // component by ItemDetailModal when redisplaying an already-saved item, as
 // opposed to one live turn. Structurally distinguishable from TopicTurn: has
-// `sections`, never has `kind`.
+// `sections`, never has `kind`. Each section's `video` (if any) is exactly
+// what was resolved and saved when that section was first written — never
+// re-searched on reopen, so the video stays what it was at save time.
 interface TopicDocument {
   title: string
-  sections: { heading: string; body: string }[]
+  sections: { heading: string; body: string; video?: YoutubeVideo }[]
 }
 
 function isTopicDocument(value: unknown): value is TopicDocument {
@@ -74,6 +79,19 @@ function ScienceExplainerResponse({ content, toolSlug, chatId, messageId, readOn
     // Neither shape — falls through to the raw-content DefaultResponse below.
   }
 
+  // Only a brand-new section searches for a real video — a 'continue' turn
+  // just adds detail to an already-settled heading, whose original video
+  // (already saved on that section) is still the relevant one. Same
+  // shouldFetchArticles-style gate News uses for its own real-API lookup.
+  const shouldFetchVideo = turn?.sectionAction === 'new' && !readOnly
+  const videoQuery = useQuery({
+    queryKey: ['youtube-video', turn?.videoKeywords || turn?.topicTitle || ''],
+    queryFn: () => fetchYoutubeVideo(turn!.videoKeywords || turn!.topicTitle),
+    enabled: shouldFetchVideo,
+    staleTime: Infinity,
+  })
+  const videoReady = !shouldFetchVideo || !videoQuery.isPending
+
   const saveMutation = useMutation({
     mutationFn: () => {
       if (!turn) throw new Error('Nothing to save')
@@ -82,6 +100,7 @@ function ScienceExplainerResponse({ content, toolSlug, chatId, messageId, readOn
         sectionHeading: turn.sectionHeading,
         sectionBody: turn.sectionBody,
         sectionAction: turn.sectionAction,
+        video: turn.sectionAction === 'new' ? (videoQuery.data ?? undefined) : undefined,
       })
       // This resolves near-instantly today, but the spinner should still
       // read as a spinner rather than flash by — holds it open at least
@@ -110,6 +129,8 @@ function ScienceExplainerResponse({ content, toolSlug, chatId, messageId, readOn
   // message whose section already saved successfully skips straight to
   // "saved" instead of re-running the save (and, if the item limit's since
   // been hit, flashing an error on something that's already safely stored).
+  // Waits on videoReady so a 'new' section saves with its real resolved
+  // video rather than racing the search and saving without one.
   const hasSavedRef = useRef(false)
   useEffect(() => {
     if (!turn || readOnly) return
@@ -118,10 +139,11 @@ function ScienceExplainerResponse({ content, toolSlug, chatId, messageId, readOn
       return
     }
     if (hasSavedRef.current) return
+    if (!videoReady) return
     hasSavedRef.current = true
     saveMutation.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [videoReady])
 
   // Reports the plain-text version up to Chat.tsx so its copy button copies
   // the explanation, not this message's raw JSON (see
@@ -145,6 +167,7 @@ function ScienceExplainerResponse({ content, toolSlug, chatId, messageId, readOn
             <div key={index}>
               <h3 className="font-display text-lg font-semibold text-slate-900">{section.heading}</h3>
               <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{renderInline(section.body)}</p>
+              {section.video && <YoutubeEmbed video={section.video} />}
             </div>
           ))}
         </div>
@@ -158,6 +181,7 @@ function ScienceExplainerResponse({ content, toolSlug, chatId, messageId, readOn
     <div>
       <h2 className="font-display text-xl font-bold text-slate-900">{turn.sectionHeading}</h2>
       <p className="mt-3 whitespace-pre-line text-sm text-slate-700">{renderInline(turn.sectionBody)}</p>
+      {shouldFetchVideo && videoQuery.data && <YoutubeEmbed video={videoQuery.data} />}
     </div>
   )
 }
