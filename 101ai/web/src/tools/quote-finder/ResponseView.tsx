@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import DefaultResponse from '../default/ResponseView'
+import YoutubeEmbed from '../../components/YoutubeEmbed'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
+import { fetchYoutubeVideo, type YoutubeVideo } from '../../lib/youtube'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
-import { buildYoutubeSearchUrl } from './youtubeSearchUrl'
 import { buildCardListCopyText } from '../../lib/copyText'
 import type { ResponseViewProps } from '../responseViews'
 
@@ -15,6 +15,14 @@ export interface Quote {
   source: string
   sourceType: string
   year: string | null
+  // A short real search phrase, only ever set when the model is highly
+  // confident this exact quote is findable in a real video (see
+  // tool-config.ts's QUOTE_FINDER_SCHEMA) — never a URL/video ID itself.
+  videoKeywords: string | null
+  // Only present once a saved item is reopened (see ItemDetailModal) — the
+  // real video resolved and saved the first time this quote was searched.
+  // Never present on a live turn's own JSON straight from the model.
+  video?: YoutubeVideo
 }
 
 interface QuoteFinderResult {
@@ -51,10 +59,7 @@ function getChatReply(value: unknown): string | null {
   return data.kind === 'chat' && typeof data.reply === 'string' ? data.reply : null
 }
 
-// showVerifyLink defaults true for the chat response, where proving the
-// quote is the point — the dashboard item card (see ItemView) passes false,
-// it's just a compact record of a quote already seen and verified in chat.
-export function QuoteCard({ quote, showVerifyLink = true }: { quote: Quote; showVerifyLink?: boolean }) {
+export function QuoteCard({ quote, video }: { quote: Quote; video?: YoutubeVideo }) {
   return (
     <div className="bg-white pt-4">
       <p className="font-display text-lg font-semibold italic leading-snug text-slate-900">&ldquo;{quote.text}&rdquo;</p>
@@ -64,17 +69,7 @@ export function QuoteCard({ quote, showVerifyLink = true }: { quote: Quote; show
         {quote.source}
         {quote.year && <span className="text-slate-400"> ({quote.year})</span>}
       </p>
-      {showVerifyLink && (
-        <a
-          href={buildYoutubeSearchUrl(quote)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 hover:text-violet-700"
-        >
-          <ExternalLink className="h-4 w-4" strokeWidth={1.75} />
-          Search YouTube to verify
-        </a>
-      )}
+      {video && <YoutubeEmbed video={video} />}
     </div>
   )
 }
@@ -96,6 +91,35 @@ function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, o
     data = null
   }
 
+  // One real YouTube search per quote, only for quotes the model flagged as
+  // confidently video-findable (videoKeywords set — see tool-config.ts).
+  // `null` at index i in the array means "no video for this quote" (either
+  // never had videoKeywords, or the search genuinely found nothing) — the
+  // array itself being non-null is what means "resolved" (see videoReady
+  // below). A reopened saved item already carries its final video (if any)
+  // straight in `quote.video`, so it never re-searches.
+  const [videos, setVideos] = useState<(YoutubeVideo | null)[] | null>(() => {
+    if (!data) return null
+    if (readOnly) return data.quotes.map((quote) => quote.video ?? null)
+    return null
+  })
+
+  useEffect(() => {
+    if (!data || readOnly) return
+    let cancelled = false
+    Promise.all(
+      data.quotes.map((quote) => (quote.videoKeywords ? fetchYoutubeVideo(quote.videoKeywords) : Promise.resolve(null))),
+    ).then((results) => {
+      if (!cancelled) setVideos(results)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const videoReady = !data || readOnly || videos !== null
+
   const saveMutation = useMutation({
     mutationFn: () => {
       if (!data) throw new Error('Nothing to save')
@@ -104,8 +128,17 @@ function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, o
       // duplicates. Promise.all here means one quote hitting the free-plan
       // item limit surfaces as the overall save failing (onError below),
       // even though any quotes saved before the limit was hit stay saved.
+      // Carries each quote's resolved video (if any) into the saved data.
       const request = Promise.all(
-        data.quotes.map((quote) => saveItem(toolSlug, chatId, quote.text, quote, quote.text.toLowerCase())),
+        data.quotes.map((quote, index) =>
+          saveItem(
+            toolSlug,
+            chatId,
+            quote.text,
+            { ...quote, video: videos?.[index] ?? undefined },
+            quote.text.toLowerCase(),
+          ),
+        ),
       )
       // This resolves near-instantly today, but the spinner should still
       // read as a spinner rather than flash by — holds it open at least
@@ -126,7 +159,9 @@ function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, o
   // than waiting on a user click. Runs once per message instance (component
   // is freshly mounted per message.id) — the ref guard is only to dodge
   // StrictMode's dev-mode double-invoke; the dedup key already makes a
-  // genuine double-call harmless either way.
+  // genuine double-call harmless either way. Waits on videoReady so the
+  // save carries each quote's real resolved video rather than racing the
+  // search.
   //
   // Reopening a chat remounts this for every historical message too, so a
   // message whose items already saved successfully skips straight to
@@ -140,10 +175,11 @@ function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, o
       return
     }
     if (hasSavedRef.current) return
+    if (!videoReady) return
     hasSavedRef.current = true
     saveMutation.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [videoReady])
 
   // Reports the plain-text version up to Chat.tsx so its copy button copies
   // the quotes, not this message's raw JSON (see
@@ -163,8 +199,8 @@ function QuoteFinderResponse({ content, toolSlug, chatId, messageId, readOnly, o
     // icons and reads as if it belongs to that quote specifically rather
     // than to the whole multi-quote response.
     <div className="space-y-4 pb-2">
-      {data.quotes.map((quote) => (
-        <QuoteCard key={quote.text} quote={quote} />
+      {data.quotes.map((quote, index) => (
+        <QuoteCard key={quote.text} quote={quote} video={videos?.[index] ?? undefined} />
       ))}
     </div>
   )

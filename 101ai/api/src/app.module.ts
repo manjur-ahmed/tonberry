@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { RequestLoggingInterceptor } from './common/request-logging.interceptor';
 import { HealthModule } from './health/health.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -10,6 +12,7 @@ import { UsageLogsModule } from './usage-logs/usage-logs.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { NewsModule } from './news/news.module';
 import { YoutubeModule } from './youtube/youtube.module';
+import { DebugModule } from './debug/debug.module';
 import { ActivityPlannerModule } from './activity-planner/activity-planner.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { User } from './users/user.entity';
@@ -52,8 +55,15 @@ import { Suggestion } from './suggestions/suggestion.entity';
     UploadsModule,
     NewsModule,
     YoutubeModule,
+    DebugModule,
     ActivityPlannerModule,
     SuggestionsModule,
+  ],
+  providers: [
+    // Global — every request gets a requestId/userId in its logs (see
+    // RequestLoggingInterceptor's own comment for why this, not
+    // REQUEST-scoped DI).
+    { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
   ],
 })
 export class AppModule {}

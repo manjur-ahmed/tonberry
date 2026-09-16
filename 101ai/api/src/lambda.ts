@@ -6,6 +6,7 @@ import {
 } from '@nestjs/platform-fastify';
 import awsLambdaFastify from '@fastify/aws-lambda';
 import { AppModule } from './app.module';
+import { StructuredLogger } from './common/structured-logger.service';
 
 // Not using the library's own PromiseHandler/CallbackHandler types: with a
 // default ESM import, ReturnType<typeof awsLambdaFastify> resolves to the
@@ -20,6 +21,13 @@ async function bootstrap(): Promise<Handler> {
     AppModule,
     new FastifyAdapter(),
   );
+  // Structured JSON logs (see StructuredLogger) — every existing
+  // Logger.warn(...)/log(...) call across the app routes through this
+  // instead of Nest's default colorized text, with requestId/userId
+  // automatically attached (see RequestLoggingInterceptor). This is the
+  // path that actually matters in prod — CloudWatch stores whatever this
+  // Lambda writes to stdout.
+  app.useLogger(new StructuredLogger());
   app.enableCors({
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'],
   });

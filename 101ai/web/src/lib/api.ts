@@ -155,3 +155,20 @@ export async function getUsageSummary(range: UsageRange): Promise<UsageSummary> 
   if (!response.ok) throw new Error(`Failed to load usage summary: ${response.status}`)
   return response.json()
 }
+
+export type DebugTestType = 'http500' | 'slow' | 'notfound' | 'log'
+
+// Admin-only (same AdminGuard as getUsageSummary above), deliberately
+// triggers a real failure on the backend to verify the observability
+// pipeline (CloudWatch alarms, structured logs, Grafana) actually picks it
+// up — see api/src/debug/debug.controller.ts. A non-2xx status here is the
+// EXPECTED, successful outcome for http500/notfound (that's the whole
+// point), so this reports the status back rather than throwing on !ok —
+// the caller decides how to present it, this never a "did it fail" check.
+export async function triggerDebugError(type: DebugTestType): Promise<{ status: number }> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/debug/test-error?type=${type}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  return { status: response.status }
+}

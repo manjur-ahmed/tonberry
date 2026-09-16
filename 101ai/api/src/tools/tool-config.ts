@@ -307,9 +307,12 @@ const STORY_EXPLAINER_SCHEMA: ResponseSchema = {
 // Deliberately no `url`/`videoUrl` field: a model-generated link is exactly
 // the kind of thing that gets hallucinated (a plausible-looking but dead or
 // wrong URL), which is worse than no link at all for a tool whose whole
-// point is proof. The frontend instead builds a YouTube *search* link out
-// of the verified text/speaker/source fields below — always a real,
-// resolvable URL, never a fabricated one.
+// point is proof. `videoKeywords` is the safe version of the same idea,
+// same principle as science-explainer/history-helper/politics's own
+// videoKeywords (see VIDEO_KEYWORDS_GUIDANCE) and tech/home/car/diy's:
+// the model only ever proposes a short *search* phrase, never a video
+// ID/URL — the backend resolves it via a real YouTube Data API search (see
+// YoutubeClient) and embeds whatever actually comes back, or nothing.
 const QUOTE_FINDER_SCHEMA: ResponseSchema = {
   name: 'quote_finder',
   schema: {
@@ -338,8 +341,16 @@ const QUOTE_FINDER_SCHEMA: ResponseSchema = {
               ],
             },
             year: { type: ['string', 'null'] },
+            videoKeywords: { type: ['string', 'null'] },
           },
-          required: ['text', 'speaker', 'source', 'sourceType', 'year'],
+          required: [
+            'text',
+            'speaker',
+            'source',
+            'sourceType',
+            'year',
+            'videoKeywords',
+          ],
           additionalProperties: false,
         },
       },
@@ -1314,6 +1325,7 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       'First decide `kind`: use "quotes" only when you have at least one quote you\'re confident about per the rule above. Use "chat" for greetings, small talk, an under-specified request that needs clarifying, or the low-confidence case above. For "chat", write the reply in `reply` and leave `quotes` an empty array.',
       'For "quotes": leave `reply` null. If the user asks for one specific quote (e.g. "what does X say when...", "the line about Y from Z"), return exactly that one. If they ask more broadly for quotes about a topic or theme from a specific work or person, return up to 3 that best fit — every one still independently held to the same confidence rule, never padded out to hit a count.',
       "text is the quote exactly as said, word for word — no paraphrasing. speaker is who said it (a character name for fiction, a real name for an interview/speech). source is the specific title it's from (film/show/book/song/interview title), not a vague description. sourceType is the closest fit. year is the release/air year as a string if you know it.",
+      'videoKeywords is a short, real, search-engine-style phrase (a few words, e.g. the source title plus a couple of distinctive words from the line) for finding the actual video this specific quote is said/sung in — never a URL or video ID, just what to search for. Only set it when sourceType is genuinely video-native (movie, tv-show, song, interview, or video — never book) AND you are highly confident this exact quote is actually findable in a real video, which is a stricter bar than just being confident the quote and source are accurate: plenty of correct quotes come from a scene or moment too obscure, too old, or too hard to pin down to reliably surface on a video search. Leave it null for book quotes, or for anything else you are not specifically confident has a findable matching video.',
       'Never repeat a quote already given earlier in this conversation unless the user asks for it again.',
     ].join(' '),
     responseSchema: QUOTE_FINDER_SCHEMA,

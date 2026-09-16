@@ -23,63 +23,59 @@
 - [ ] Add a size cap on saved item `data` payloads (currently an unbounded JSON blob per item)
 
 ## Core Product — Tools & Chat
-- [ ] Wire remaining tools to the API — today every tool other than Word Helper returns entirely canned/instant replies (confirmed in code comments), so this is a prerequisite for most of the feature work below, not just a UI gap
-  - [x] Writer
-  - [x] Maths Solver
-  - [x] Science Explainer
-  - [x] History Helper
-  - [x] Film Recommendations
-  - [x] Book Recommendations
-  - [x] Music Recommendations
-  - [x] Story Explainer
-  - [x] Quote Finder
-  - [x] Business Plan
-  - [x] Business Research
-  - [x] Ad Creator
-  - [x] Salary Calculator
-  - [x] Budget Planner
-  - [x] Career Planner
-  - [x] Shopping
-  - [x] Clothes (renamed from Clothing)
-  - [x] Bills & Utilities (renamed from Insurance)
-  - [x] General Health
-  - [x] Diet
-  - [x] Self Care
-  - [x] Steps Planner
-  - [x] Gym Planner
-  - [x] Cooking
-  - [x] Activity Finder
-  - [x] Holiday Planning
-  - [x] Event Planner
-  - [x] Politics & Law
-  - [x] News
-  - [x] Home
-  - [x] Car
-  - [x] DIY
-  - [x] Tech
-  - [ ] Set up additional API requirements for supplemental data
+- [ ] Set up additional API requirements for supplemental data
 - [ ] Improve prompts on all wired-up tools — the earliest ones (Word Helper, Film/Book/Music Recommendations) predate patterns established by later tools: confidence-gating against hallucination (Quote Finder), a stable per-item key so an evolving thing gets amended in place instead of forked or lost (Cooking's `dishKey`/Diet's `planKey`), tool-specific tone, and deliberately minimal instruction where the model handles nuance better on its own (Diet). Revisit each tool's `tool-config.ts` entry against these patterns for consistency, not just the ones that happen to need a new feature
-- [x] Design dashboard for remaining tools
-  - [x] Dynamic dashboard tabs (may be different for different tools)
-  - [x] Design item card for different tools
-- [x] Design different chat UI for different tools (not all might be a chat)
-- [x] Set up items to be sent to different tools (e.g. Word Helper might save an item called "cake" which can then be sent to the Cooking tool — everything interconnected)
-- [x] Fix file/image uploader (currently not working — dead "Attach" button in both the chat composer and the dashboard) and roll it out across all chats
-- [x] Need a "recommend tool" page
-- [x] Reorganize tool categories/visibility: renamed the "Education" category to "Learning" and moved Politics & Law into it, hid the News tool from Home's browse grid/search/category pickers for now (still reachable from any existing chat, just can't be started fresh), and renamed the Clothing tool to Clothes
 - [ ] Put in place per-plan usage limits (what a user can do based on which package/tier they're on)
 - [ ] Enable actually purchasing Plus/Premium — Pricing page has both permanently disabled ("Coming soon"), so every plan-gated feature (Memory, unlimited items) is currently unreachable by any real user
 - [ ] Fix the Memory toggle — Settings' toggle is local-only and never saved to the backend, while Chat's "Memory on/off" indicator instead reads off `user.plan`; the two are disconnected and neither can be legitimately exercised until Plus/Premium purchase exists
-- [x] Persist thumbs up/down message feedback — currently local UI state only, discarded on remount, no backend call
-- [x] Fix the "Copy" button on every structured-output tool's reply — it copies the raw JSON message content, not the rendered text (e.g. copying a diet plan pastes `{"kind":"plan",...}`). Fixed for Ad Creator specifically (see `onCopyTextChange` in responseViews.tsx/Chat.tsx — a ResponseView can report a plain-text override), but every other tool still has the underlying issue; worth going through and wiring the same override wherever a copy-pasteable result actually matters
 - [ ] Track real chat usage — the daily-usage ring on Home is hardcoded to 0, so the "N chats remaining today" meter is fake for every user on every plan
-- [x] Add a 404/error boundary — the router has no catch-all route or error element, so a bad URL or a thrown render error shows React Router's raw blank/error screen
-- [x] Surface query errors instead of treating them as empty states — the dashboard, Recent, and Chat pages all drop fetch errors, so a failed request looks identical to "nothing here yet" (and a missing chat looks like "not found" even when it's really an auth/server error)
 - [ ] Add loading state UIs across the site — skeletons/spinners exist on some pages (Home, ToolDashboard, ToolPage, Chat) but others (Recent, Settings) show nothing while fetching, so slow requests look broken instead of loading; make coverage consistent everywhere data is fetched
 - [ ] Reconcile the dark-mode toggle — implemented two different, both non-functional ways (onboarding saves it to the backend, Settings only touches localStorage), and nothing in the app actually applies a dark theme anywhere yet
 - [ ] Improve the homepage search bar — currently a plain substring match on tool name/description with no clear ("x") button, no match highlighting, and no tolerance for typos or partial/out-of-order words
 - [ ] Add free-trial/upgrade prompts around the site — today the only nudge is `ItemLimitBanner`, shown reactively once a free user's item cap is already hit; add proactive messaging elsewhere (Home, dashboard, chat) to drive Plus/Premium upgrades. Depends on enabling actual purchasing (see Pricing "Coming soon" item above) — no point prompting an upgrade that can't be completed
-- [x] Embed relevant YouTube videos in chats so the user can watch without leaving the app — done for Science Explainer, History Helper, Politics & Law, Tech, Home, Car, and DIY (broader than the original Science/History-only scope, extended to every tool where a demonstration/explainer video genuinely helps). The model only ever produces a search query (`videoKeywords`) — never a video ID/URL — and the backend resolves it via a real YouTube Data API v3 search call (`YoutubeClient`), embedding whatever actually comes back or nothing if there's no good match, same "never trust the model for a URL" principle already applied to Quote Finder's verify link. Tech/Home/Car/DIY additionally cache the resolved video client-side per guide (`resolvedGuideVideos.ts`) so a multi-reply refinement only ever triggers one real search, not one per reply. `YOUTUBE_API_KEY` is live in `.env`/Terraform (free tier ~100 searches/day at the default 10,000-unit daily cap)
+
+## Tool-Specific Feedback
+*User-submitted list (2026-09-15), organized by tool.*
+
+### General
+- [ ] Move to a monotone theme
+- [ ] Onboarding can stay colourful (exception to the monotone theme)
+- [ ] Export to app
+- [ ] Chat responses are too friendly/opinionated (e.g. "that's a great question!") — tone down
+- [ ] Paragraphs in responses are too chunky — break up further
+- [ ] Fix Google Maps API (not working)
+- [ ] Change "my location" from lat/lon to a town/city name
+- [ ] When continuing a chat started from an item, sometimes the item itself should be updated instead of creating a new one on the same topic
+- [ ] Add a toggle to save/unsave an item directly from the chat
+- [ ] Add onboarding tooltips
+- [ ] Add a 3-dot menu on all chats
+
+### Writer
+- [ ] Note SDK
+- [ ] Writer didn't show up in Recent
+- [ ] Hide the send button by default; show it only when the input is focused
+- [ ] Confirm whether Writer saves in the background if the user clicks back too quickly
+- [ ] "Copy All" needs feedback (confirmation state)
+- [ ] Add a confirmation step to Delete
+- [ ] Add "Send to" functionality
+- [ ] BUG: issue switching between saved states
+- [ ] UX: text area is hidden when the keyboard is up
+
+### Maths Solver
+- [ ] Minimise the shown working out
+- [ ] Structure responses as: value, formula, then working out
+
+### Business Planner
+- [ ] Use the advanced model for maths
+
+### Gym Planner & Skin Care
+- [ ] When gathering info about the user, the next question should be on its own bolded line; positive affirmation is good; routines should be iterative — have users try steps and give feedback
+
+### Cooking
+- [ ] Cooking guide needs serious work (general quality pass)
+
+### New Tools
+- [ ] Document explainer
 
 ## Design & Branding
 - [ ] Improve font and branding
@@ -111,4 +107,5 @@
 
 ---
 
-**Progress: 46/98 tasks complete (47%)**
+**Progress: 46/123 tasks complete (37%)**
+`███████░░░░░░░░░░░░░` 37%

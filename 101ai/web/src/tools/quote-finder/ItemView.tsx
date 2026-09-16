@@ -22,7 +22,7 @@ function QuoteFinderItemView({ title, data }: { title: string; data: unknown }) 
     // extra right padding pushes the wrap point earlier so the quote text
     // never reaches that corner instead of the button covering it.
     <div className="rounded-2xl border border-slate-200 bg-white pl-4 pr-10 pb-4">
-      <QuoteCard quote={data} showVerifyLink={false} />
+      <QuoteCard quote={data} />
     </div>
   )
 }

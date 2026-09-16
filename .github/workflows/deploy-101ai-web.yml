@@ -32,6 +32,9 @@ jobs:
       - run: npm run build
         env:
           VITE_API_URL: ${{ vars.AI101_API_URL }}
+          VITE_GOOGLE_MAPS_BROWSER_API_KEY: ${{ vars.AI101_GOOGLE_MAPS_BROWSER_API_KEY }}
+          VITE_CLARITY_PROJECT_ID: ${{ vars.AI101_CLARITY_PROJECT_ID }}
+          VITE_FARO_COLLECTOR_URL: ${{ vars.AI101_FARO_COLLECTOR_URL }}
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
