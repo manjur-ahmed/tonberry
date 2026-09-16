@@ -43,14 +43,15 @@
 - [ ] Export to app
 - [ ] Chat responses are too friendly/opinionated (e.g. "that's a great question!") — tone down
 - [ ] Paragraphs in responses are too chunky — break up further
-- [ ] Fix Google Maps API (not working)
-- [ ] Change "my location" from lat/lon to a town/city name
+- [x] Fix Google Maps API (not working) — two independent gaps, both fixed: the web deploy workflow never passed `VITE_GOOGLE_MAPS_BROWSER_API_KEY` at build time (browser-side Maps JS/Static API), and `GOOGLE_API_KEY` was never wired into Terraform at all (server-side Routes/Places API, `GoogleMapsClient`) despite the value already sitting unused in `terraform.tfvars` — both now live in prod
+- [x] Change "my location" from lat/lon to a town/city name — reworked rather than just reworded: the "already set" banner is gone entirely from an already-running chat (was clutter there), but kept as a one-time "Near Birmingham — not you?" checkpoint on the new-chat compose sheet only, using a real reverse-geocoded place name instead of raw coordinates, in case the cached location's gone stale (moved since it was last set) before starting something new
 - [ ] When continuing a chat started from an item, sometimes the item itself should be updated instead of creating a new one on the same topic
 - [ ] Add a toggle to save/unsave an item directly from the chat
 - [ ] Add onboarding tooltips
 - [ ] Add a 3-dot menu on all chats
 
 ### Writer
+- [x] Rename Writer to Notes
 - [ ] Note SDK
 - [ ] Writer didn't show up in Recent
 - [ ] Hide the send button by default; show it only when the input is focused
@@ -77,20 +78,27 @@
 ### New Tools
 - [ ] Document explainer
 
+### Recommendation Tools
+- [x] Fix recommendation tools (Film/Book/Music) repeating the same suggestion within one ongoing chat — root cause found: `MAX_HISTORY_MESSAGES` (20) in `openai.service.ts` silently dropped older turns before the model saw them once a "give me more" chat passed ~10 exchanges, so the existing "never repeat" prompt instruction had nothing to check against; widened to 60
+- [x] Rename Book Recommendations to Read Recommendations, and broaden scope to comics/manga/manhwa/light novels (not book-only) — rating is now source-aware (`rating`/`ratingSource`, e.g. Goodreads for prose, MyAnimeList/AniList for manga) instead of a fixed Goodreads field, and a new `format` field distinguishes Book/Manga/Manhwa/Comic/Light Novel
+- [x] Create Show Recommendations (new standalone tool, mirrors Film Recommendations)
+- [x] Add images/video on recommendation tools — real per-source resolution server-side, never a model-guessed URL (same principle as the YouTube embed work). Film/Show → Wikipedia (two-step search-then-summary; switched from TMDb after the user flagged TMDb's commercial-use tier as a real cost risk given 101ai's paid plans — Wikipedia is free for any use, including commercial). Read → Google Books for books/Western comics, AniList for manga/manhwa/light novels, routed by the new `format` field. Music → on reflection a YouTube embed (reusing the existing pipeline wholesale) beats a static album-art image, so `MUSIC_RECOMMENDATIONS_SCHEMA` gained `videoKeywords` instead of a new Cover Art Archive integration. Verified against real live data for every source, not just docs — this caught two real bugs before shipping: an unquoted Wikipedia search query mis-ranking TV show results, and Google Books' "keyless" access actually returning a hard 0-quota error in this environment despite Google's own docs calling a key "optional" (now reuses the existing `GOOGLE_API_KEY`, needs one more Cloud Console step — enable Books API for the project + on that key)
+
 ## Design & Branding
 - [ ] Improve font and branding
 - [ ] Create logo
 - [ ] Add pictures and descriptions for all tools on the tool introduction/about page
-- [ ] Small UI fixes around the site (includes a data bug found in audit: India is listed with `$` instead of `₹` in the country/currency list)
+- [ ] Small UI fixes around the site
+  - [x] India's currency — resolved as policy, not a bug: the app only supports `$`/`£`/`€` (see `CurrencySymbol`), and any country outside those three deliberately defaults to `$` rather than gaining a fourth symbol
 - [ ] Change "saved" tool to "pinned" tool
 - [ ] Be able to pin items on tools
 
 ## Infrastructure & DevOps
 - [ ] Fix Lambda cold starts — audit found the function isn't VPC-attached at all (so networking config isn't the cause); the real contributors are a 25MB monolithic deployment package and no provisioned concurrency. Split `node_modules` into a Lambda layer and add provisioned concurrency instead of pursuing a networking fix
-- [ ] Set up observability (Grafana)
-  - [ ] Add CloudWatch alarms on Lambda errors/throttles/duration and API Gateway 4xx/5xx — none exist today
+- [x] Set up observability (Grafana) — Grafana Cloud connected to real CloudWatch (via a dedicated read-only IAM role) and to Grafana Faro (Frontend Observability: JS errors, console, Web Vitals, every fetch/XHR call, React Router route changes — see `web/src/lib/faro.ts`); sessions/requests tagged with the real `userId` on both frontend (Faro + Clarity) and backend (structured JSON logs + `requestId`/`userId` via `RequestLoggingInterceptor`/`StructuredLogger`, `AsyncLocalStorage`-based); an admin-only `/admin/debug` page + `/debug/test-error` endpoint deliberately triggers each failure type to verify the whole pipeline end-to-end
+  - [x] Add CloudWatch alarms on Lambda errors/throttles/duration and API Gateway 4xx/5xx — 5 alarms live, SNS email notifications
   - [ ] Log the real error when an OpenAI call fails instead of discarding it — every OpenAI-side failure is currently invisible in production
-- [ ] Set up MS Clarity
+- [x] Set up MS Clarity — gated to the real prod hostname only (never localhost/preview), sessions tagged with real `userId`
 - [ ] Track recurring costs — a running list of everything paid for (domain, hosting, API usage, tools/subscriptions), what it costs, and when it renews, so nothing lapses or surprises unnoticed
 - [ ] Add Terraform plan/apply to CI — both GitHub Actions workflows currently only deploy app artifacts (Lambda zip, S3 sync); all infra changes are applied manually from a local machine
 - [ ] Set up a proper dev/staging environment — everything today is one flat "prod" environment and state file, no per-environment tfvars
@@ -107,5 +115,7 @@
 
 ---
 
-**Progress: 46/123 tasks complete (37%)**
-`███████░░░░░░░░░░░░░` 37%
+**Progress: 9/80 tasks complete (11%)**
+`██░░░░░░░░░░░░░░░░░░` 12%
+
+*(Recount, 2026-09-16 — the previous 46/123 figure was stale relative to the actual checklist (the "Tool-Specific Feedback" section added a batch of new items without the header being updated to match). This is the real current count.)*

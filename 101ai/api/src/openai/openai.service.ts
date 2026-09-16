@@ -14,9 +14,17 @@ import { UsageLogsService } from '../usage-logs/usage-logs.service';
 const MAX_COMPLETION_TOKENS = 2500;
 
 // Bounds how much prior conversation gets sent on a long chat — a simple
-// recency cutoff, not real pruning/summarization. Plenty for any chat this
-// app produces today.
-const MAX_HISTORY_MESSAGES = 20;
+// recency cutoff, not real pruning/summarization. Was 20 (10 exchanges) —
+// too tight in practice: a recommendation tool (Film/Book/Music) that's
+// told "never repeat something already recommended" can only honor that
+// for whatever's still inside this window, and 20 was easy to blow through
+// in an ordinary "give me more" back-and-forth, at which point the model
+// genuinely can no longer see its own earlier replies (confirmed root
+// cause of reported repeat-recommendation bug, 2026-09-16 — not a
+// model-compliance issue). 60 gives real headroom (gpt-4o-mini's context
+// window is nowhere close to being the actual constraint here) while still
+// capping unboundedly long chats.
+const MAX_HISTORY_MESSAGES = 60;
 
 // Cheap, fast model for the small auxiliary calls below (route-intent
 // extraction) — never needs the main chat model's capability, and running

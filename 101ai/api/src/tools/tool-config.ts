@@ -186,18 +186,69 @@ const FILM_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
   },
 };
 
-// Same 'kind' escape hatch as FILM_RECOMMENDATIONS_SCHEMA, for the same
-// reason: strict json_schema can't leave `books` empty for a plain "hi" or
-// a clarifying follow-up, so 'chat' carries the reply in `reply` with
-// `books` as an empty array instead.
-const BOOK_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
-  name: 'book_recommendations',
+// Structurally identical to FILM_RECOMMENDATIONS_SCHEMA (kept as its own
+// object — see DIET_PLAN_SCHEMA's comment for why) — TV shows use the same
+// IMDb-rating convention as films, unlike books/manga where one fixed
+// rating site doesn't fit every format (see READ_RECOMMENDATIONS_SCHEMA).
+const SHOW_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
+  name: 'show_recommendations',
   schema: {
     type: 'object',
     properties: {
       kind: { type: 'string', enum: ['recommendations', 'chat'] },
       reply: { type: ['string', 'null'] },
-      books: {
+      shows: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            year: { type: ['string', 'null'] },
+            genre: { type: ['string', 'null'] },
+            summary: { type: ['string', 'null'] },
+            whyRecommended: { type: ['string', 'null'] },
+            // From the model's own training knowledge, not a live IMDb
+            // lookup — so it's an approximation, not a guaranteed-accurate
+            // score. null when the model isn't confident, rather than
+            // guessing a plausible-looking number.
+            imdbRating: { type: ['number', 'null'] },
+          },
+          required: [
+            'title',
+            'year',
+            'genre',
+            'summary',
+            'whyRecommended',
+            'imdbRating',
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['kind', 'reply', 'shows'],
+    additionalProperties: false,
+  },
+};
+
+// Same 'kind' escape hatch as FILM_RECOMMENDATIONS_SCHEMA, for the same
+// reason: strict json_schema can't leave `books` empty for a plain "hi" or
+// a clarifying follow-up, so 'chat' carries the reply in `reply` with
+// `books` as an empty array instead.
+// Covers books, comics, manga, manhwa, and light novels — not book-only
+// (see the 'book-recommendations' task text below), hence `reads` rather
+// than `books`, and a generic `rating`/`ratingSource` pair rather than a
+// fixed Goodreads field: Goodreads fits prose books but isn't the relevant
+// authority for manga/manhwa (MyAnimeList/AniList are), so the model names
+// whichever site actually is for each specific entry instead of every
+// entry being forced through one site that may not even cover it.
+const READ_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
+  name: 'read_recommendations',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['recommendations', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      reads: {
         type: 'array',
         items: {
           type: 'object',
@@ -205,29 +256,39 @@ const BOOK_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
             title: { type: 'string' },
             author: { type: ['string', 'null'] },
             year: { type: ['string', 'null'] },
+            // e.g. "Book", "Manga", "Manhwa", "Comic", "Light Novel" — kept
+            // distinct from genre so the UI can show them separately (a
+            // format badge vs. actual genre tags).
+            format: { type: ['string', 'null'] },
             genre: { type: ['string', 'null'] },
             summary: { type: ['string', 'null'] },
             whyRecommended: { type: ['string', 'null'] },
-            // From the model's own training knowledge, not a live
-            // Goodreads lookup — so it's an approximation, not a
-            // guaranteed-accurate score. null when the model isn't
-            // confident, rather than guessing a plausible-looking number.
-            goodreadsRating: { type: ['number', 'null'] },
+            // Both from the model's own training knowledge, never a live
+            // lookup — so an approximation, not a guaranteed-accurate
+            // score. null when the model isn't confident, rather than
+            // guessing a plausible-looking number.
+            rating: { type: ['number', 'null'] },
+            // Names exactly which site `rating` is from (e.g. "Goodreads",
+            // "MyAnimeList", "AniList", "StoryGraph") — never shown without
+            // saying where the number came from.
+            ratingSource: { type: ['string', 'null'] },
           },
           required: [
             'title',
             'author',
             'year',
+            'format',
             'genre',
             'summary',
             'whyRecommended',
-            'goodreadsRating',
+            'rating',
+            'ratingSource',
           ],
           additionalProperties: false,
         },
       },
     },
-    required: ['kind', 'reply', 'books'],
+    required: ['kind', 'reply', 'reads'],
     additionalProperties: false,
   },
 };
@@ -260,6 +321,11 @@ const MUSIC_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
             // when the model isn't confident, rather than guessing a
             // precise-looking number.
             spotifyPlays: { type: ['number', 'null'] },
+            // Same principle/field as Quote Finder's own videoKeywords —
+            // never a URL/video ID, just what to search for; the backend
+            // resolves it via the existing real YouTube Data API search
+            // (see YoutubeClient) and embeds whatever actually comes back.
+            videoKeywords: { type: ['string', 'null'] },
           },
           required: [
             'title',
@@ -269,6 +335,7 @@ const MUSIC_RECOMMENDATIONS_SCHEMA: ResponseSchema = {
             'summary',
             'whyRecommended',
             'spotifyPlays',
+            'videoKeywords',
           ],
           additionalProperties: false,
         },
@@ -1274,17 +1341,29 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     ].join(' '),
     responseSchema: FILM_RECOMMENDATIONS_SCHEMA,
   },
+  'show-recommendations': {
+    model: 'gpt-4o-mini',
+    task: [
+      'You help the user find TV shows to watch based on their taste.',
+      'First decide `kind`: use "recommendations" once you have enough to go on — a genre, mood, actor, similar title, or anything else that narrows it down — and are ready to suggest shows. Use "chat" for greetings, small talk, thanks, or when the request is too open-ended to recommend from yet (e.g. "recommend me something") and you need to ask a short clarifying question first (what mood, genre, or a show they already like). For "chat", write a short, warm reply in `reply` and leave `shows` as an empty array.',
+      `For "recommendations": leave \`reply\` null. ${buildRecommendationCountGuidance('shows')} A specific known set here means a real shared franchise/universe of distinct shows (e.g. the various Star Trek or CSI shows) — not the seasons of one single show; if asked for "the rest of X" or "more like this", always return other distinct shows, never additional seasons of the same one. Never repeat a show already recommended earlier in this conversation unless the user asks for it again.`,
+      'title is the show\'s name only, no year or extra text. year is the first-aired year as a string (e.g. "1994") — for a show still running or with multiple eras, the year it started. genre is 1-3 short genre words (e.g. "Sci-Fi, Thriller"). summary is one short spoiler-free sentence on what it\'s about. whyRecommended is one short sentence on why it fits what the user asked for specifically — not a generic blurb.',
+      "imdbRating is the show's approximate IMDb rating out of 10 (e.g. 8.4) from what you know — leave it null rather than guessing if you're not reasonably confident of the real figure.",
+      'Keep every field concise.',
+    ].join(' '),
+    responseSchema: SHOW_RECOMMENDATIONS_SCHEMA,
+  },
   'book-recommendations': {
     model: 'gpt-4o-mini',
     task: [
-      'You help the user find books to read based on their taste.',
-      'First decide `kind`: use "recommendations" once you have enough to go on — a genre, mood, author, similar title, or anything else that narrows it down — and are ready to suggest books. Use "chat" for greetings, small talk, thanks, or when the request is too open-ended to recommend from yet (e.g. "recommend me something") and you need to ask a short clarifying question first (what mood, genre, or a book they already like). For "chat", write a short, warm reply in `reply` and leave `books` as an empty array.',
-      `For "recommendations": leave \`reply\` null. ${buildRecommendationCountGuidance('books')} A series here also includes a numbered book series by one author (e.g. a trilogy) — not just literal film-style franchises. Never repeat a book already recommended earlier in this conversation unless the user asks for it again.`,
-      'title is the book\'s name only, no author or extra text. author is the author\'s name. year is the original publication year as a string (e.g. "1994"). genre is 1-3 short genre words (e.g. "Sci-Fi, Thriller"). summary is one short spoiler-free sentence on what it\'s about. whyRecommended is one short sentence on why it fits what the user asked for specifically — not a generic blurb.',
-      "goodreadsRating is the book's approximate Goodreads rating out of 5 (e.g. 4.2) from what you know — leave it null rather than guessing if you're not reasonably confident of the real figure.",
+      'You help the user find something to read based on their taste — prose books, but also comics, manga, manhwa, and light novels are all in scope, not just books.',
+      'First decide `kind`: use "recommendations" once you have enough to go on — a genre, mood, author/artist, similar title, or anything else that narrows it down — and are ready to suggest reads. Use "chat" for greetings, small talk, thanks, or when the request is too open-ended to recommend from yet (e.g. "recommend me something") and you need to ask a short clarifying question first (what mood, genre, format, or a title they already like). For "chat", write a short, warm reply in `reply` and leave `reads` as an empty array.',
+      `For "recommendations": leave \`reply\` null. ${buildRecommendationCountGuidance('reads')} A series includes a numbered book/manga/manhwa series by one author or creative team (e.g. a trilogy, or a long-running manga) — not just literal film-style franchises. Never repeat something already recommended earlier in this conversation unless the user asks for it again.`,
+      'title is the work\'s name only, no author or extra text. author is the author\'s (or, for manga/manhwa, the writer\'s/artist\'s) name. year is the original publication year as a string (e.g. "1994"). format is the closest fit — "Book", "Manga", "Manhwa", "Comic", or "Light Novel" — never left ambiguous when it\'s clearly one of these. genre is 1-3 short genre words (e.g. "Sci-Fi, Thriller"). summary is one short spoiler-free sentence on what it\'s about. whyRecommended is one short sentence on why it fits what the user asked for specifically — not a generic blurb.',
+      'rating is this title\'s approximate score out of 5 from what you know (never a live lookup) — leave it null rather than guessing if you\'re not reasonably confident of the real figure. ratingSource names exactly which real site that figure is from, using whichever is the actual standard authority for this specific format rather than defaulting to one site for everything: Goodreads (or StoryGraph) for prose books, MyAnimeList or AniList for manga/manhwa/light novels. Leave both null together if unsure — never state a rating without naming its real source.',
       'Keep every field concise.',
     ].join(' '),
-    responseSchema: BOOK_RECOMMENDATIONS_SCHEMA,
+    responseSchema: READ_RECOMMENDATIONS_SCHEMA,
   },
   'music-recommendations': {
     model: 'gpt-4o-mini',
@@ -1294,6 +1373,7 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
       `For "recommendations": leave \`reply\` null. ${buildRecommendationCountGuidance('songs')} A series here means a real linked set — a concept album's tracklist, or an artist's most iconic run of singles — not just "more songs by this artist" in general. Never repeat a song already recommended earlier in this conversation unless the user asks for it again.`,
       'title is the song\'s name only, no artist or extra text. artist is the performing artist or band. year is the release year as a string (e.g. "1994"). genre is 1-3 short genre words (e.g. "Indie, Rock"). summary is one short sentence on the song\'s vibe or what it\'s about. whyRecommended is one short sentence on why it fits what the user asked for specifically — not a generic blurb.',
       "spotifyPlays is the song's approximate total Spotify play count if you have a reasonable sense of its rough scale (e.g. 900000000 for a huge global hit, 5000000 for a well-known but niche track) — leave it null if you don't have a reasonable sense of the real magnitude. Round to a sensible figure rather than stating a suspiciously exact number.",
+      `${VIDEO_KEYWORDS_GUIDANCE} For a song this almost always means the official music video or official audio upload — nearly every real song has one worth finding, so only leave it null when you're not actually confident this is a real, findable song.`,
       'Keep every field concise.',
     ].join(' '),
     responseSchema: MUSIC_RECOMMENDATIONS_SCHEMA,

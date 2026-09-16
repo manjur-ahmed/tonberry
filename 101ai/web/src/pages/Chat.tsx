@@ -769,24 +769,6 @@ function Chat() {
           />
         )}
 
-        {tool.needsLocation && gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
-          <ToolNotice
-            icon={MapPin}
-            message={
-              isLocating ? (
-                'Updating your location…'
-              ) : (
-                <>
-                  Using your saved location ({gpsLocation.lat.toFixed(3)}, {gpsLocation.lng.toFixed(3)}).{' '}
-                  <button type="button" onClick={handleAllowLocation} className="underline">
-                    Update location
-                  </button>
-                </>
-              )
-            }
-          />
-        )}
-
         {redirectSuggestion ? (
           <RedirectSuggestion toolSlug={redirectSuggestion.toolSlug} onStayHere={handleStayHere} />
         ) : (

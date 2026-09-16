@@ -46,6 +46,7 @@ import Skeleton from '../components/Skeleton'
 import ToolNotice from '../components/ToolNotice'
 import { useAuth } from '../hooks/useAuth'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
+import { useLocationName } from '../hooks/useLocationName'
 
 const tabs = ['Items', 'Chats', 'Examples'] as const
 type Tab = (typeof tabs)[number]
@@ -134,6 +135,10 @@ function ToolDashboard() {
   const [gpsLocation, setGpsLocation] = useState<GpsLocation | null>(() => getCachedGpsLocation())
   const [geolocationDenied, setGeolocationDenied] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
+  // Real town/city name for the "not you?" checkpoint below — only shown
+  // here, on the new-chat compose sheet, never in an already-running chat
+  // (see gpsLocation.ts's reverseGeocodeToPlaceName for why).
+  const locationName = useLocationName(gpsLocation)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const documentInputRef = useRef<HTMLInputElement>(null)
@@ -641,7 +646,7 @@ function ToolDashboard() {
             </div>
           )}
 
-          {tool?.needsLocation && gpsLocation && (
+          {tool?.needsLocation && gpsLocation && (isLocating || locationName.data) && (
             <div className="px-4">
               <ToolNotice
                 icon={MapPin}
@@ -650,7 +655,7 @@ function ToolDashboard() {
                     'Updating your location…'
                   ) : (
                     <>
-                      Using your saved location ({gpsLocation.lat.toFixed(3)}, {gpsLocation.lng.toFixed(3)}).{' '}
+                      Near {locationName.data} — not you?{' '}
                       <button type="button" onClick={handleAllowLocation} className="underline">
                         Update location
                       </button>

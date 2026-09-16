@@ -13,6 +13,7 @@ import { UploadsModule } from './uploads/uploads.module';
 import { NewsModule } from './news/news.module';
 import { YoutubeModule } from './youtube/youtube.module';
 import { DebugModule } from './debug/debug.module';
+import { ImagesModule } from './images/images.module';
 import { ActivityPlannerModule } from './activity-planner/activity-planner.module';
 import { SuggestionsModule } from './suggestions/suggestions.module';
 import { User } from './users/user.entity';
@@ -56,6 +57,7 @@ import { Suggestion } from './suggestions/suggestion.entity';
     NewsModule,
     YoutubeModule,
     DebugModule,
+    ImagesModule,
     ActivityPlannerModule,
     SuggestionsModule,
   ],

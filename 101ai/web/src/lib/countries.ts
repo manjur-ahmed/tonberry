@@ -20,6 +20,8 @@ export const countries: Country[] = [
   { code: 'NL', name: 'Netherlands', flag: '🇳🇱', currency: '€' },
   { code: 'CA', name: 'Canada', flag: '🇨🇦', currency: '$' },
   { code: 'AU', name: 'Australia', flag: '🇦🇺', currency: '$' },
+  // Not $/£/€ — defaults to $ per policy (see CurrencySymbol), not its real
+  // currency (₹).
   { code: 'IN', name: 'India', flag: '🇮🇳', currency: '$' },
 ]
 

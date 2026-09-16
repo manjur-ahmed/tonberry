@@ -3,6 +3,7 @@ import DefaultItemView from './default/ItemView'
 import WordHelperItemView from './word-helper/ItemView'
 import MathsSolverItemView from './maths-solver/ItemView'
 import FilmRecommendationsItemView from './film-recommendations/ItemView'
+import ShowRecommendationsItemView from './show-recommendations/ItemView'
 import BookRecommendationsItemView from './book-recommendations/ItemView'
 import MusicRecommendationsItemView from './music-recommendations/ItemView'
 import QuoteFinderItemView from './quote-finder/ItemView'
@@ -45,6 +46,7 @@ const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'word-helper': WordHelperItemView,
   'maths-solver': MathsSolverItemView,
   'film-recommendations': FilmRecommendationsItemView,
+  'show-recommendations': ShowRecommendationsItemView,
   'book-recommendations': BookRecommendationsItemView,
   'music-recommendations': MusicRecommendationsItemView,
   'quote-finder': QuoteFinderItemView,

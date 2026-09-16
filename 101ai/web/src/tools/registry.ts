@@ -89,7 +89,7 @@ export const tools: Tool[] = [
   // Learning
   {
     slug: 'writer',
-    name: 'Writer',
+    name: 'Notes',
     description: 'Note taking or draft a piece of writing.',
     icon: '✍️',
     category: 'Learning',
@@ -148,9 +148,16 @@ export const tools: Tool[] = [
     category: 'Entertainment & Media',
   },
   {
+    slug: 'show-recommendations',
+    name: 'Show Recommendations',
+    description: 'Get TV show picks based on your taste.',
+    icon: '📺',
+    category: 'Entertainment & Media',
+  },
+  {
     slug: 'book-recommendations',
-    name: 'Book Recommendations',
-    description: 'Get book picks based on your taste.',
+    name: 'Read Recommendations',
+    description: 'Get book, manga, and comic picks based on your taste.',
     icon: '📚',
     category: 'Entertainment & Media',
   },

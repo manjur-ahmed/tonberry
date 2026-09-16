@@ -1,25 +1,22 @@
 import { Star } from 'lucide-react'
 
-interface ReadItemData {
+interface ShowItemData {
   title: string
-  author: string | null
   year: string | null
-  format: string | null
   genre: string | null
   summary: string | null
-  rating: number | null
-  ratingSource: string | null
+  imdbRating: number | null
   image?: { url: string; source: string }
 }
 
-function isReadItemData(value: unknown): value is ReadItemData {
+function isShowItemData(value: unknown): value is ShowItemData {
   if (!value || typeof value !== 'object') return false
   const data = value as Record<string, unknown>
   return typeof data.title === 'string'
 }
 
-function ReadRecommendationsItemView({ title, data }: { title: string; data: unknown }) {
-  if (!isReadItemData(data)) {
+function ShowRecommendationsItemView({ title, data }: { title: string; data: unknown }) {
+  if (!isShowItemData(data)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <p className="text-sm font-semibold text-slate-900">{title}</p>
@@ -37,17 +34,12 @@ function ReadRecommendationsItemView({ title, data }: { title: string; data: unk
           {data.title}
           {data.year && <span className="text-slate-400"> ({data.year})</span>}
         </h3>
-        {data.author && <p className="mt-0.5 text-sm text-slate-500">{data.author}</p>}
-        {(data.format || data.genre) && (
-          <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
-            {[data.format, data.genre].filter(Boolean).join(' · ')}
-          </p>
-        )}
+        {data.genre && <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-400">{data.genre}</p>}
         {data.summary && <p className="mt-2 text-sm text-slate-700">{data.summary}</p>}
-        {data.rating != null && data.ratingSource && (
+        {data.imdbRating != null && (
           <div className="mt-2 flex items-center gap-1 text-sm text-slate-700">
             <Star className="h-4 w-4 text-amber-400" strokeWidth={1.75} fill="currentColor" />
-            <span>{data.rating.toFixed(1)}/5 on {data.ratingSource}</span>
+            <span>{data.imdbRating.toFixed(1)}/10 on IMDb</span>
           </div>
         )}
       </div>
@@ -55,4 +47,4 @@ function ReadRecommendationsItemView({ title, data }: { title: string; data: unk
   )
 }
 
-export default ReadRecommendationsItemView
+export default ShowRecommendationsItemView
