@@ -30,3 +30,11 @@ export function markItemSavedForMessage(messageId: string) {
   const current = read()
   if (!current.includes(messageId)) write([...current, messageId])
 }
+
+export function clearSavedMessageItems() {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
+}

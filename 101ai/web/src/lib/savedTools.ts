@@ -31,3 +31,11 @@ export function toggleSavedTool(slug: string): boolean {
   write(isSaved ? current.filter((saved) => saved !== slug) : [...current, slug])
   return !isSaved
 }
+
+export function clearSavedTools() {
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    // Storage unavailable — nothing to clear.
+  }
+}

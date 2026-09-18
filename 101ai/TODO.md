@@ -15,7 +15,7 @@
 - [ ] Redirect unauthenticated users away from `/tools/:slug/dashboard` and `/tools/:slug/chats/:id` instead of showing them empty/broken states
 - [ ] Make "Delete account" actually delete the account server-side (currently just signs out — the account still exists)
 - [ ] Make "Reset chats" / "Remove items" in Settings actually clear data (currently no-ops that show a fake success)
-- [ ] Clear `savedTools`/`savedMessageItems` localStorage on sign-out — currently leaks one user's starred tools and saved-item markers to the next person who signs in on the same browser
+- [x] Clear `savedTools`/`savedMessageItems` localStorage on sign-out — added `clearSavedTools()`/`clearSavedMessageItems()`, called from the single real sign-out path (`useAuth.signOut()`), which both the Settings sign-out button and the "Delete account" confirm already route through
 - [ ] Add a per-user/day message cap or throttling on chat endpoints, and a max length on message content — items have a free-plan cap, but chat messages (the actual OpenAI cost driver) are currently unlimited and unbounded in size for every plan
 - [ ] Add API Gateway request throttling and a WAF on the public API and CloudFront — neither exists today
 - [ ] Add AWS Budget / cost-anomaly alerts at the account level (separate from the in-app recurring-cost tracker below — this is a billing guardrail against e.g. a leaked key or a runaway invocation loop)
@@ -115,7 +115,7 @@
 
 ---
 
-**Progress: 9/80 tasks complete (11%)**
-`██░░░░░░░░░░░░░░░░░░` 12%
+**Progress: 10/80 tasks complete (13%)**
+`██▌░░░░░░░░░░░░░░░░░` 13%
 
 *(Recount, 2026-09-16 — the previous 46/123 figure was stale relative to the actual checklist (the "Tool-Specific Feedback" section added a batch of new items without the header being updated to match). This is the real current count.)*
