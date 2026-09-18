@@ -6,10 +6,10 @@ import Dashboard from './pages/Dashboard'
 import Guides from './pages/Guides'
 
 export const router = createBrowserRouter([
+  { path: '/', element: <Home /> },
   {
     element: <Layout />,
     children: [
-      { path: '/', element: <Home /> },
       { path: '/login', element: <Login /> },
       { path: '/dashboard', element: <Dashboard /> },
       { path: '/guides', element: <Guides /> },
