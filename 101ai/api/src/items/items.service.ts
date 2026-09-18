@@ -201,7 +201,9 @@ export class ItemsService {
   async getItemsForTool(userId: string, toolSlug: string): Promise<Item[]> {
     const items = await this.itemsRepository.find({
       where: { userId, toolSlug },
-      order: { updatedAt: 'DESC' },
+      // pinned first (see Item.pinned), most recently updated first within
+      // each group — no separate "pinned" list, just reordered in place.
+      order: { pinned: 'DESC', updatedAt: 'DESC' },
     });
     return items.map(truncateBodyForList);
   }
@@ -209,7 +211,7 @@ export class ItemsService {
   async getAllItems(userId: string): Promise<Item[]> {
     const items = await this.itemsRepository.find({
       where: { userId },
-      order: { updatedAt: 'DESC' },
+      order: { pinned: 'DESC', updatedAt: 'DESC' },
     });
     return items.map(truncateBodyForList);
   }
@@ -225,5 +227,16 @@ export class ItemsService {
     });
     if (!item) throw new NotFoundException('Item not found');
     return item;
+  }
+
+  async setPinned(userId: string, itemId: string, pinned: boolean): Promise<Item> {
+    const item = await this.getOwnedItem(userId, itemId);
+    item.pinned = pinned;
+    return this.itemsRepository.save(item);
+  }
+
+  // Settings' "Remove items" — every item this user has, across every tool.
+  async deleteAllForUser(userId: string): Promise<void> {
+    await this.itemsRepository.delete({ userId });
   }
 }

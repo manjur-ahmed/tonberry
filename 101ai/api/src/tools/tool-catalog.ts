@@ -25,6 +25,11 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
     description: 'Find the right word or check its meaning.',
   },
   {
+    slug: 'document-explainer',
+    name: 'Document Explainer',
+    description: 'Understand a document — attach one and ask about it.',
+  },
+  {
     slug: 'science-explainer',
     name: 'Science Explainer',
     description: 'Explain a science concept in plain language.',

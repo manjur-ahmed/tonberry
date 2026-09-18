@@ -152,6 +152,19 @@ const ROUTE_INTENT_SYSTEM_PROMPT =
   '"startLocationName": string|null, "destinationName": string|null, ' +
   '"startCategory": string|null, "nearestOnly": boolean}.';
 
+// Used by needsMathsUpgrade (see ToolConfig.mathModelOverride) — a cheap
+// pre-check so a tool like business-plan only pays for the stronger model
+// on turns that actually need it, not every turn.
+const MATHS_CHECK_SYSTEM_PROMPT =
+  'Decide whether answering the LATEST message requires doing real ' +
+  'numeric calculation where getting the arithmetic right actually ' +
+  'matters — e.g. pricing, unit economics, a budget, startup costs, or ' +
+  'any other figure that has to be computed correctly. General ideation, ' +
+  'market/competitor discussion, or a plan section with no numbers to ' +
+  'work out does NOT count, even if money or a word like "cost" or ' +
+  '"price" comes up without an actual calculation to do. Respond with ' +
+  'ONLY a JSON object: {"needsMaths": boolean}.';
+
 export interface HistoryMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -231,8 +244,14 @@ export class OpenAiService {
           ]
         : params.message;
 
+      const model = config.mathModelOverride
+        ? (await this.needsMathsUpgrade(params))
+          ? config.mathModelOverride
+          : config.model
+        : config.model;
+
       const response = await this.client.chat.completions.create({
-        model: config.model,
+        model,
         messages: [
           { role: 'system', content: config.systemPrompt },
           ...params.history.slice(-MAX_HISTORY_MESSAGES).map((entry) => ({
@@ -259,16 +278,16 @@ export class OpenAiService {
 
       const usage = response.usage;
       if (usage) {
-        // config.model (what we requested), not response.model (the
-        // specific dated snapshot OpenAI actually served) — MODEL_PRICING
-        // is keyed by the request-time name, so this is what actually
-        // resolves to a price.
+        // model (what we actually requested — see the mathModelOverride
+        // check above), not response.model (the specific dated snapshot
+        // OpenAI actually served) — MODEL_PRICING is keyed by the
+        // request-time name, so this is what actually resolves to a price.
         await this.usageLogs.record({
           userId: params.userId,
           chatId: params.chatId,
           messageId: params.messageId,
           toolSlug: params.toolSlug,
-          model: config.model,
+          model,
           promptTokens: usage.prompt_tokens,
           completionTokens: usage.completion_tokens,
           totalTokens: usage.total_tokens,
@@ -283,6 +302,53 @@ export class OpenAiService {
       throw new InternalServerErrorException(
         'Could not generate a reply — try again.',
       );
+    }
+  }
+
+  // Cheap pre-check backing ToolConfig.mathModelOverride — runs on AUX_MODEL,
+  // same pattern as extractRouteIntent/the shopping-intent call below. Any
+  // failure (bad JSON, API error) defaults to false rather than blocking the
+  // real reply — worst case a maths-needing turn stays on the cheaper model
+  // for once, which is far better than the real call failing outright.
+  private async needsMathsUpgrade(
+    params: GenerateReplyParams,
+  ): Promise<boolean> {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: AUX_MODEL,
+        messages: [
+          { role: 'system', content: MATHS_CHECK_SYSTEM_PROMPT },
+          ...params.history.slice(-MAX_HISTORY_MESSAGES).map((entry) => ({
+            role: entry.role,
+            content: entry.content,
+          })),
+          { role: 'user', content: params.message },
+        ],
+        max_completion_tokens: 20,
+        response_format: { type: 'json_object' },
+      });
+      const raw = response.choices[0]?.message?.content;
+      const usage = response.usage;
+      if (usage) {
+        await this.usageLogs.record({
+          userId: params.userId,
+          chatId: params.chatId,
+          messageId: params.messageId,
+          toolSlug: params.toolSlug,
+          model: AUX_MODEL,
+          promptTokens: usage.prompt_tokens,
+          completionTokens: usage.completion_tokens,
+          totalTokens: usage.total_tokens,
+          cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+          prompt: params.message,
+          response: raw ?? undefined,
+        });
+      }
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { needsMaths?: boolean };
+      return parsed.needsMaths === true;
+    } catch {
+      return false;
     }
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Patch, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { SetPlanDto } from './dto/set-plan.dto';
 import { SetPreferencesDto } from './dto/set-preferences.dto';
@@ -41,5 +41,11 @@ export class UsersController {
       dto.newPassword,
     );
     return toPublicUser(updated);
+  }
+
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  deleteAccount(@CurrentUser() user: User) {
+    return this.usersService.deleteAccount(user.id);
   }
 }

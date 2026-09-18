@@ -113,6 +113,15 @@ export async function register(name: string, email: string, password: string): P
   return response.json()
 }
 
+export async function deleteAccount(): Promise<void> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/users/me`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(await readErrorMessage(response, 'Could not delete account — try again.'))
+}
+
 export async function setPassword(newPassword: string): Promise<CurrentUser> {
   const token = getToken()
   const response = await fetch(`${API_URL}/users/password`, {

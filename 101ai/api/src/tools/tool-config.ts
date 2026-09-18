@@ -20,6 +20,14 @@ export interface ToolConfig {
   // needs a deliberately smaller (or larger) ceiling — e.g. story-explainer
   // sizing its cap to roughly one minute of reading time.
   maxCompletionTokens?: number;
+  // When set, OpenAiService runs a cheap pre-check on the latest message
+  // and upgrades to this model instead of `model` only when that message
+  // actually needs real numeric calculation — unlike salary-calculator/
+  // budget-planner/maths-solver (permanently on the stronger model because
+  // getting the maths right is ~always the point), a tool like
+  // business-plan is often pure ideation/market discussion with nothing to
+  // calculate, so paying gpt-4o's cost on every turn isn't worth it.
+  mathModelOverride?: string;
 }
 
 interface ToolDefinition {
@@ -34,6 +42,8 @@ interface ToolDefinition {
   // the law on running a red light" needing to know whose law. Most tools
   // have no use for this, so it's opt-in rather than sent to every tool.
   usesResidencyContext?: boolean;
+  // See ToolConfig.mathModelOverride.
+  mathModelOverride?: string;
 }
 
 // Most tools should be conversational and friendly, not just
@@ -488,6 +498,36 @@ const TOPIC_EXPLAINER_SCHEMA: ResponseSchema = {
 // POLITICS_SCHEMA (see the comment on POLITICS_SCHEMA).
 const BILLS_UTILITIES_SCHEMA: ResponseSchema = {
   name: 'bills_utilities_explanation',
+  schema: {
+    type: 'object',
+    properties: {
+      kind: { type: 'string', enum: ['explanation', 'chat'] },
+      reply: { type: ['string', 'null'] },
+      topicTitle: { type: ['string', 'null'] },
+      sectionHeading: { type: ['string', 'null'] },
+      sectionBody: { type: ['string', 'null'] },
+      sectionAction: {
+        type: ['string', 'null'],
+        enum: ['new', 'continue', null],
+      },
+    },
+    required: [
+      'kind',
+      'reply',
+      'topicTitle',
+      'sectionHeading',
+      'sectionBody',
+      'sectionAction',
+    ],
+    additionalProperties: false,
+  },
+};
+
+// Structurally identical to BILLS_UTILITIES_SCHEMA — kept as its own
+// object per the same reasoning (may diverge later). No video support:
+// there's no real "watch a video about this document" use case.
+const DOCUMENT_EXPLAINER_SCHEMA: ResponseSchema = {
+  name: 'document_explanation',
   schema: {
     type: 'object',
     properties: {
@@ -1329,6 +1369,27 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
     ].join(' '),
     responseSchema: WORD_DEFINITION_SCHEMA,
   },
+  // No document is required to use this tool — ChatsService injects a
+  // document-state note ahead of the user's own message every turn (what's
+  // been attached in this chat so far, and the full extracted text of
+  // anything attached THIS turn specifically — see
+  // ChatsService.describeDocumentAttachments), so extraGuidance below just
+  // has to tell the model how to read and react to that, not repeat the
+  // mechanics.
+  'document-explainer': {
+    model: 'gpt-4o-mini',
+    task: buildTopicExplainerTask(
+      'document the user has attached (or is asking about attaching)',
+      'In sectionBody, wrap names, figures, dates, or key terms pulled directly from the document in **double asterisks** to bold them, so specifics stand out against your own explanation around them. Be selective: bold the handful that matter most to this point, not every one in the document.',
+      [
+        'A short note ahead of the user\'s message tells you what document(s) (if any) have been attached in this chat so far. If it says none have been attached yet, say so plainly and invite the user to attach one — a PDF, Word (.docx), or plain-text file works best — rather than pretending to have read something you haven\'t; you can still have a general conversation about documents or formats in the meantime.',
+        'A document attached on THIS specific turn is marked "NEWLY ATTACHED" and comes with its full extracted text (truncated with a note if it runs long) — read it properly, don\'t just skim the opening. A document attached on an EARLIER turn is only named, not re-shown to you — rely on what you already said about it earlier in this conversation, the same way you would for an image attached a few messages ago.',
+        'When a new document arrives and an earlier one was already part of this conversation, work out from what the user actually says now whether they want the new one brought into the same discussion alongside the earlier one (e.g. comparing the two, or a related follow-up) or want to shift focus to just the new one — don\'t assume either way, and don\'t silently drop the earlier document from consideration unless the user\'s wording suggests they\'re done with it.',
+        'A document type you have no real way to read (an old-format .doc, or an Excel spreadsheet) is still named to you, but flagged as unreadable — say so honestly and ask the user to paste the relevant text, or attach it as a PDF, .docx, or plain-text file instead, rather than guessing at its contents.',
+      ].join(' '),
+    ),
+    responseSchema: DOCUMENT_EXPLAINER_SCHEMA,
+  },
   'film-recommendations': {
     model: 'gpt-4o-mini',
     task: [
@@ -1568,6 +1629,12 @@ const TOOL_DEFINITIONS: Record<string, ToolDefinition> = {
   },
   'business-plan': {
     model: 'gpt-4o-mini',
+    // Unlike salary-calculator/budget-planner/maths-solver, a business plan
+    // conversation is often pure ideation or market/competitor discussion
+    // with nothing to calculate — only upgrade to gpt-4o (see
+    // mathModelOverride) for the turns that actually need real numbers
+    // (pricing, unit economics, startup costs) to come out right.
+    mathModelOverride: 'gpt-4o',
     usesResidencyContext: true,
     task: [
       'You help the user draft and refine a business plan for a specific business idea, working through it over the conversation as they add detail or ask for changes.',
@@ -1772,5 +1839,6 @@ export function getToolConfig(
       .join('\n\n'),
     responseSchema: definition.responseSchema,
     maxCompletionTokens: definition.maxCompletionTokens,
+    mathModelOverride: definition.mathModelOverride,
   };
 }

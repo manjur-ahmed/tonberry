@@ -153,7 +153,7 @@ function Home() {
           user &&
           savedTools.length > 0 && (
             <div className="mb-10">
-              <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
+              <h2 className="font-display text-2xl font-semibold text-slate-900">Pinned</h2>
               <div className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {savedTools.map((tool) => (
                   <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2)] flex-shrink-0">

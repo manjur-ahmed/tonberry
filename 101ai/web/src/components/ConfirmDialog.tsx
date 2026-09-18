@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react'
 
-const WAIT_SECONDS = 5
-
 interface ConfirmDialogProps {
   open: boolean
   title: string
@@ -9,27 +7,47 @@ interface ConfirmDialogProps {
   confirmLabel: string
   onConfirm: () => void
   onCancel: () => void
+  // Forces a delay before the confirm button becomes clickable — for an
+  // account-wide destructive action (Settings' "delete account"/"reset
+  // chats"/"remove items", wiping ALL of something at once) where a slower,
+  // more deliberate confirm is worth the friction. Defaults to 0 (no wait)
+  // for an ordinary single-item/chat delete, which doesn't need it.
+  waitSeconds?: number
 }
 
-function ConfirmDialog({ open, title, description, confirmLabel, onConfirm, onCancel }: ConfirmDialogProps) {
-  const [secondsLeft, setSecondsLeft] = useState(WAIT_SECONDS)
+function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  waitSeconds = 0,
+}: ConfirmDialogProps) {
+  const [secondsLeft, setSecondsLeft] = useState(waitSeconds)
 
   useEffect(() => {
     if (!open) return
-    setSecondsLeft(WAIT_SECONDS)
+    setSecondsLeft(waitSeconds)
+    if (waitSeconds <= 0) return
     const interval = setInterval(() => {
       setSecondsLeft((current) => Math.max(0, current - 1))
     }, 1000)
     return () => clearInterval(interval)
-  }, [open])
+  }, [open, waitSeconds])
 
   if (!open) return null
 
   return (
     // fixed, not absolute — see ItemDetailModal for why (pins to the real
-    // viewport instead of the whole scrollable page).
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-md items-end justify-center bg-slate-900/40 px-4 pb-8 sm:items-center">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+    // viewport instead of the whole scrollable page). onClick={onCancel}
+    // here, stopPropagation on the panel below — same backdrop-dismiss
+    // pattern as ItemDetailModal.
+    <div
+      className="fixed inset-0 z-50 mx-auto flex max-w-md items-end justify-center bg-slate-900/40 px-4 pb-8 sm:items-center"
+      onClick={onCancel}
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
         <h2 className="font-display text-lg font-semibold text-slate-900">{title}</h2>
         <p className="mt-2 text-sm text-slate-600">{description}</p>
 

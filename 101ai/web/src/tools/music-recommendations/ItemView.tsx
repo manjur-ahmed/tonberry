@@ -1,4 +1,4 @@
-import { Play } from 'lucide-react'
+import { Pin, Play } from 'lucide-react'
 import { formatPlays } from '../../lib/formatPlays'
 
 interface SongItemData {
@@ -16,10 +16,13 @@ function isSongItemData(value: unknown): value is SongItemData {
   return typeof data.title === 'string'
 }
 
-function MusicRecommendationsItemView({ title, data }: { title: string; data: unknown }) {
+function MusicRecommendationsItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   if (!isSongItemData(data)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        {/* Always rendered, not just when pinned — a 2-column grid row with
+            one pinned and one unpinned card would otherwise mismatch height. */}
+        <div className="mb-1 text-slate-400">{pinned ? <Pin className="h-3.5 w-3.5" strokeWidth={1.75} /> : ' '}</div>
         <p className="text-sm font-semibold text-slate-900">{title}</p>
       </div>
     )
@@ -31,6 +34,7 @@ function MusicRecommendationsItemView({ title, data }: { title: string; data: un
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-1 text-slate-400">{pinned ? <Pin className="h-3.5 w-3.5" strokeWidth={1.75} /> : ' '}</div>
       <h3 className="font-display text-2xl font-bold text-slate-900">{data.title}</h3>
       {data.artist && <p className="mt-0.5 text-sm text-slate-500">{data.artist}</p>}
       {primaryGenre && <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{primaryGenre}</p>}

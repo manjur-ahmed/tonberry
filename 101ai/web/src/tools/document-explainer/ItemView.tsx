@@ -12,10 +12,10 @@ function isTopicItemData(value: unknown): value is TopicItemData {
   return typeof data.title === 'string' && Array.isArray(data.sections)
 }
 
-// The tile shows the umbrella topic, how many subheadings it's grown to,
-// and a line-clamp-3 preview of the first one, same trick ToolCard/
-// story-explainer use for a trailing ellipsis.
-function ScienceExplainerItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
+// The tile shows the document(s) discussed, how many angles the
+// conversation's grown to, and a line-clamp-3 preview of the first one,
+// same trick business-research/ToolCard use for a trailing ellipsis.
+function DocumentExplainerItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   if (!isTopicItemData(data) || data.sections.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -45,4 +45,4 @@ function ScienceExplainerItemView({ title, data, pinned }: { title: string; data
   )
 }
 
-export default ScienceExplainerItemView
+export default DocumentExplainerItemView

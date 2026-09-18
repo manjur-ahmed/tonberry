@@ -9,6 +9,7 @@ export interface Item {
   title: string
   data: unknown
   dedupKey: string | null
+  pinned: boolean
   createdAt: string
   updatedAt: string
 }
@@ -113,4 +114,18 @@ export async function getItem(id: string): Promise<Item> {
 export async function deleteItem(id: string): Promise<void> {
   const response = await authedFetch(`/items/${id}`, { method: 'DELETE' })
   if (!response.ok) throw new Error(`Failed to delete item: ${response.status}`)
+}
+
+export async function setItemPinned(id: string, pinned: boolean): Promise<Item> {
+  const response = await authedFetch(`/items/${id}/pin`, {
+    method: 'PATCH',
+    body: JSON.stringify({ pinned }),
+  })
+  if (!response.ok) throw new Error(`Failed to update item: ${response.status}`)
+  return response.json()
+}
+
+export async function deleteAllItems(): Promise<void> {
+  const response = await authedFetch(`/items`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(`Failed to remove items: ${response.status}`)
 }

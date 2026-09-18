@@ -1,3 +1,5 @@
+import { Pin } from 'lucide-react'
+
 interface BusinessPlanItemData {
   planTitle: string
   sections: { heading: string; body: string }[]
@@ -12,10 +14,15 @@ function isBusinessPlanItemData(value: unknown): value is BusinessPlanItemData {
 // The tile shows the business idea, how many sections the plan's grown to,
 // and a line-clamp-3 preview of the first one, same trick ToolCard/
 // story-explainer use for a trailing ellipsis.
-function BusinessPlanItemView({ title, data }: { title: string; data: unknown }) {
+function BusinessPlanItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   if (!isBusinessPlanItemData(data) || data.sections.length === 0) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        {pinned && (
+          <div className="mb-1 text-slate-400">
+            <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </div>
+        )}
         <p className="text-sm font-semibold text-slate-900">{title}</p>
       </div>
     )
@@ -23,6 +30,11 @@ function BusinessPlanItemView({ title, data }: { title: string; data: unknown })
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      {pinned && (
+        <div className="mb-1 text-slate-400">
+          <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </div>
+      )}
       <p className="text-sm font-semibold text-slate-900">{data.planTitle}</p>
       <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-400">
         {data.sections.length === 1 ? '1 section' : `${data.sections.length} sections`}

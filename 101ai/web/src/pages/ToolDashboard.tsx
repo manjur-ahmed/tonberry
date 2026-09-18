@@ -13,20 +13,20 @@ import {
   Loader2,
   MapPin,
   Minimize2,
+  Pin,
   Sparkles,
-  Star,
   Trash2,
   X,
 } from 'lucide-react'
 import { getTool, type ComposeOption } from '../tools/registry'
 import { isToolSaved, toggleSavedTool } from '../lib/savedTools'
-import { getChatsForTool, type GpsLocation } from '../lib/chats'
+import { deleteChat, getChatsForTool, type GpsLocation } from '../lib/chats'
 import {
   getCachedGpsLocation,
   queryGeolocationPermission,
   setCachedGpsLocation,
 } from '../lib/gpsLocation'
-import { deleteItem, getItemsForTool, type Item } from '../lib/items'
+import { deleteItem, getItemsForTool, setItemPinned, type Item } from '../lib/items'
 import { generateContent } from '../lib/generate'
 import {
   ALLOWED_UPLOAD_CONTENT_TYPES,
@@ -41,6 +41,7 @@ import ItemPickerSheet from '../components/ItemPickerSheet'
 import CompactItemCard from '../components/CompactItemCard'
 import FileAttachmentChip from '../components/FileAttachmentChip'
 import OptionsMenu from '../components/OptionsMenu'
+import ConfirmDialog from '../components/ConfirmDialog'
 import AttachmentMenu from '../components/AttachmentMenu'
 import Skeleton from '../components/Skeleton'
 import ToolNotice from '../components/ToolNotice'
@@ -88,6 +89,7 @@ const DENSE_ITEM_TOOLS = new Set([
   'gym-planner',
   'business-plan',
   'business-research',
+  'document-explainer',
   // A static map thumbnail (route or venue) wants real room to not look
   // tiny and squashed cramped into half a 2-column row — see
   // steps-planner/ItemView.tsx (portrait) and day-activity/ItemView.tsx
@@ -108,9 +110,17 @@ function ToolDashboard() {
   const tool = slug ? getTool(slug) : undefined
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { user } = useAuth()
+  const { user, isLoading: isAuthLoading } = useAuth()
   const keyboardInset = useKeyboardInset()
+
+  useEffect(() => {
+    if (!isAuthLoading && !user) navigate('/sign-in', { replace: true })
+  }, [isAuthLoading, user, navigate])
+
   const [tab, setTab] = useState<Tab>('Items')
+  const [pendingDelete, setPendingDelete] = useState<
+    { kind: 'item'; id: string; title: string } | { kind: 'chat'; id: string; title: string } | null
+  >(null)
   const [isSaved, setIsSaved] = useState(() => (tool ? isToolSaved(tool.slug) : false))
   const [isComposing, setIsComposing] = useState(false)
   const [isComposeMenuOpen, setIsComposeMenuOpen] = useState(false)
@@ -172,6 +182,28 @@ function ToolDashboard() {
     mutationFn: (itemId: string) => deleteItem(itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['items', tool?.slug] })
+    },
+  })
+
+  const togglePinMutation = useMutation({
+    mutationFn: (vars: { itemId: string; pinned: boolean }) => setItemPinned(vars.itemId, vars.pinned),
+    // ['items'] matches as a prefix — covers this tool's own list plus
+    // Recent/ItemPickerSheet's cross-tool ones, same reasoning as every
+    // other item-mutating invalidation in this codebase.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+    },
+  })
+
+  const deleteChatMutation = useMutation({
+    mutationFn: (chatId: string) => deleteChat(chatId),
+    // ['chats'] matches as a prefix, so this also covers Recent's
+    // cross-tool ['chats'] list, not just this tool's ['chats', slug] one
+    // — same reasoning as NoteEditor's save invalidation: without it,
+    // another view would keep showing the deleted chat until something
+    // else forced a refetch.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chats'] })
     },
   })
 
@@ -311,13 +343,17 @@ function ToolDashboard() {
     }
   }, [tool?.needsLocation, gpsLocation])
 
-  // A photo (or item) with no caption still needs some non-empty content
-  // (see AddMessageDto/CreateChatDto's @MinLength(1)) — the attachment
-  // itself is the actual message in that case.
-  function fallbackContent(attachmentCount: number, items: Item[]): string {
+  // A photo/file (or item) with no caption still needs some non-empty
+  // content (see AddMessageDto/CreateChatDto's @MinLength(1)) — the
+  // attachment itself is the actual message in that case. "image" only
+  // when every attachment actually is one — a document (or a mix of a
+  // document and a photo) reads as "file" instead.
+  function fallbackContent(attachments: PendingAttachment[], items: Item[]): string {
     if (items.length === 1) return `See attached ${items[0].title}.`
     if (items.length > 1) return 'See attached items.'
-    return attachmentCount > 1 ? 'See attached images.' : 'See attached image.'
+    const allImages = attachments.length > 0 && attachments.every((attachment) => attachment.contentType.startsWith('image/'))
+    const noun = allImages ? 'image' : 'file'
+    return attachments.length > 1 ? `See attached ${noun}s.` : `See attached ${noun}.`
   }
 
   function handleSend() {
@@ -341,7 +377,7 @@ function ToolDashboard() {
       state: {
         // A photo (or item) with no caption still needs some non-empty
         // content (see AddMessageDto/CreateChatDto's @MinLength(1)).
-        firstMessage: message.trim() || fallbackContent(uploaded.length, pendingItems),
+        firstMessage: message.trim() || fallbackContent(uploaded, pendingItems),
         firstAttachments: uploaded.length > 0 ? uploaded.map((attachment) => attachment.uploaded!) : undefined,
         // Same blob urls Chat.tsx's own optimistic bubble uses — client-side
         // navigation keeps them valid (no full page reload happens), so the
@@ -370,10 +406,10 @@ function ToolDashboard() {
         <button
           type="button"
           onClick={handleToggleSave}
-          aria-label={isSaved ? 'Remove from saved tools' : 'Save this tool'}
+          aria-label={isSaved ? 'Unpin this tool' : 'Pin this tool'}
           className="ml-auto text-slate-400"
         >
-          <Star className={`h-5 w-5 ${isSaved ? 'fill-amber-400 text-amber-400' : ''}`} strokeWidth={1.75} />
+          <Pin className={`h-5 w-5 ${isSaved ? 'fill-amber-400 text-amber-400' : ''}`} strokeWidth={1.75} />
         </button>
       </div>
 
@@ -485,18 +521,33 @@ function ToolDashboard() {
                       }
                       className="block w-full text-left"
                     >
-                      <ItemView title={item.title} data={item.data} />
+                      {/* No separate "pinned" section — a pinned item just
+                          sorts to the top wherever it'd already show up
+                          (see ItemsService's ORDER BY). Each ItemView
+                          renders the badge itself, as a sibling right
+                          before its own title, rather than this wrapper
+                          overlaying one on top — every tool lays its card
+                          out differently, so an absolutely-positioned
+                          overlay here risked covering a title sitting
+                          flush in a corner. */}
+                      <ItemView title={item.title} data={item.data} pinned={item.pinned} />
                     </button>
 
                     <div className="absolute right-2 top-2">
                       <OptionsMenu
                         items={[
                           {
+                            label: item.pinned ? 'Unpin' : 'Pin',
+                            icon: Pin,
+                            disabled: togglePinMutation.isPending,
+                            onClick: () => togglePinMutation.mutate({ itemId: item.id, pinned: !item.pinned }),
+                          },
+                          {
                             label: 'Delete',
                             icon: Trash2,
                             tone: 'danger',
                             disabled: deleteItemMutation.isPending,
-                            onClick: () => deleteItemMutation.mutate(item.id),
+                            onClick: () => setPendingDelete({ kind: 'item', id: item.id, title: item.title }),
                           },
                         ]}
                       />
@@ -524,24 +575,40 @@ function ToolDashboard() {
           ) : (
             <div className="space-y-2">
               {chats.map((chat) => (
-                <Link
-                  key={chat.id}
-                  to={`/tools/${tool?.slug}/chats/${chat.id}`}
-                  className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-slate-900">{chat.title}</p>
-                    {chat.lastMessagePreview && (
-                      <p className="mt-1 truncate text-sm text-slate-500">{chat.lastMessagePreview}</p>
-                    )}
+                <div key={chat.id} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/tools/${tool?.slug}/chats/${chat.id}`)}
+                    className="flex w-full items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 pr-12 text-left"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-900">{chat.title}</p>
+                      {chat.lastMessagePreview && (
+                        <p className="mt-1 truncate text-sm text-slate-500">{chat.lastMessagePreview}</p>
+                      )}
+                    </div>
+                    <span className="flex-shrink-0 text-xs text-slate-400">
+                      {new Date(chat.updatedAt).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </button>
+
+                  <div className="absolute right-2 top-2">
+                    <OptionsMenu
+                      items={[
+                        {
+                          label: 'Delete',
+                          icon: Trash2,
+                          tone: 'danger',
+                          disabled: deleteChatMutation.isPending,
+                          onClick: () => setPendingDelete({ kind: 'chat', id: chat.id, title: chat.title }),
+                        },
+                      ]}
+                    />
                   </div>
-                  <span className="flex-shrink-0 text-xs text-slate-400">
-                    {new Date(chat.updatedAt).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </span>
-                </Link>
+                </div>
               ))}
             </div>
           ))}
@@ -795,6 +862,21 @@ function ToolDashboard() {
             setPendingItems((current) => (current.some((existing) => existing.id === item.id) ? current : [...current, item]))
             setIsItemPickerOpen(false)
           }}
+        />
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          open
+          title={pendingDelete.kind === 'item' ? 'Delete this item?' : 'Delete this chat?'}
+          description={`This will permanently delete "${pendingDelete.title}". This can't be undone.`}
+          confirmLabel="Delete"
+          onConfirm={() => {
+            if (pendingDelete.kind === 'item') deleteItemMutation.mutate(pendingDelete.id)
+            else deleteChatMutation.mutate(pendingDelete.id)
+            setPendingDelete(null)
+          }}
+          onCancel={() => setPendingDelete(null)}
         />
       )}
     </main>

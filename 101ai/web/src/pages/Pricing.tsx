@@ -5,6 +5,7 @@ import { setPlan } from '../lib/api'
 import { useAuth } from '../hooks/useAuth'
 import { getCurrencySymbol } from '../lib/countries'
 import { plans } from '../lib/plans'
+import LegalLinksFooter from '../components/LegalLinksFooter'
 
 const headings: Record<string, { title: string; subtitle: string }> = {
   memory: {
@@ -112,6 +113,8 @@ function Pricing() {
       {mutation.isError && (
         <p className="relative mt-4 text-center text-sm text-red-600">Something went wrong — try again.</p>
       )}
+
+      <LegalLinksFooter />
     </main>
   )
 }

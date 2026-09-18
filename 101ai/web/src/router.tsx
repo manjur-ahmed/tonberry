@@ -11,6 +11,8 @@ import Pricing from './pages/Pricing'
 import Settings from './pages/Settings'
 import ChangePassword from './pages/ChangePassword'
 import Recent from './pages/Recent'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 import Country from './pages/Country'
 import AuthCallback from './pages/AuthCallback'
 import AdminUsage from './pages/AdminUsage'
@@ -49,6 +51,8 @@ export const router = withFaroRouterInstrumentation(createBrowserRouter([
           { path: '/settings/password', element: <ChangePassword /> },
           { path: '/settings/recommend-tool', element: <RecommendTool /> },
           { path: '/recent', element: <Recent /> },
+          { path: '/terms', element: <Terms /> },
+          { path: '/privacy', element: <Privacy /> },
           { path: '/auth/callback', element: <AuthCallback /> },
           { path: '/admin/usage', element: <AdminUsage /> },
           { path: '/admin/suggestions', element: <AdminSuggestions /> },

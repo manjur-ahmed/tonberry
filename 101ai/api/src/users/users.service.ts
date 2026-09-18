@@ -1,8 +1,12 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User, UserPlan } from './user.entity';
+import { Chat } from '../chats/chat.entity';
+import { Item } from '../items/item.entity';
+import { Suggestion } from '../suggestions/suggestion.entity';
+import { UsageLog } from '../usage-logs/usage-log.entity';
 
 const PASSWORD_HASH_ROUNDS = 10;
 
@@ -17,6 +21,12 @@ export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    // Only used by deleteAccount below, to reach Chat/Item/Suggestion/
+    // UsageLog in one transaction without this module taking on a
+    // dependency on ChatsModule/ItemsModule/etc — DataSource already has
+    // every entity registered app-wide, no per-module forFeature needed.
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   findById(id: string): Promise<User | null> {
@@ -107,5 +117,23 @@ export class UsersService {
     const updated = await this.findById(id);
     if (!updated) throw new Error('User not found after password update');
     return updated;
+  }
+
+  // Real erasure, not just sign-out — chats (and their messages, via the
+  // existing cascade), items, suggestions, and usage logs (which carry the
+  // real prompt/response text, not just anonymous metrics — see
+  // RecordUsageParams) all get cleared alongside the user row itself.
+  // None of these have an enforced FK back to users (unlike chat_messages
+  // -> chats), so this is done explicitly rather than relying on cascade,
+  // and wrapped in one transaction so a failure partway through can't leave
+  // the account half-deleted.
+  async deleteAccount(id: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(Chat, { userId: id });
+      await manager.delete(Item, { userId: id });
+      await manager.delete(Suggestion, { userId: id });
+      await manager.delete(UsageLog, { userId: id });
+      await manager.delete(User, { id });
+    });
   }
 }

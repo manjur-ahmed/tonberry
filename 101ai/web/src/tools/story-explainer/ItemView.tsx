@@ -1,3 +1,5 @@
+import { Pin } from 'lucide-react'
+
 interface StoryItemData {
   title: string
   year: string | null
@@ -15,10 +17,15 @@ function isStoryItemData(value: unknown): value is StoryItemData {
 // title+year for its own card. line-clamp-3 gives the start of the
 // explanation with a trailing ellipsis once it overflows, same trick
 // ToolCard uses for its description.
-function StoryExplainerItemView({ title, data }: { title: string; data: unknown }) {
+function StoryExplainerItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   if (!isStoryItemData(data)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        {pinned && (
+          <div className="mb-1 text-slate-400">
+            <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </div>
+        )}
         <p className="text-sm font-semibold text-slate-900">{title}</p>
       </div>
     )
@@ -26,6 +33,11 @@ function StoryExplainerItemView({ title, data }: { title: string; data: unknown 
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      {pinned && (
+        <div className="mb-1 text-slate-400">
+          <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </div>
+      )}
       <p className="text-sm font-semibold text-slate-900">
         {data.title}
         {data.year && <span className="text-slate-400"> ({data.year})</span>}

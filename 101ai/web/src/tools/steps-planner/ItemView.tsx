@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Pin } from 'lucide-react'
 import type { SavedRouteData } from './ResponseView'
 
 function isSavedRouteData(value: unknown): value is SavedRouteData {
@@ -31,7 +32,7 @@ function staticMapUrl(encodedPolyline: string): string {
 // distance — same "title + key facts" shape every other tool's tile uses,
 // backed entirely by the real Routes API result (see ResponseView.tsx),
 // never anything estimated here.
-function StepsPlannerItemView({ title, data }: { title: string; data: unknown }) {
+function StepsPlannerItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   const route = isSavedRouteData(data) ? data : null
   const distance = route ? formatDistance(route.distanceMeters) : null
   const [mapFailed, setMapFailed] = useState(false)
@@ -47,6 +48,11 @@ function StepsPlannerItemView({ title, data }: { title: string; data: unknown })
         />
       )}
       <div className="p-4">
+        {pinned && (
+          <div className="mb-1 text-slate-400">
+            <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </div>
+        )}
         <p className="text-sm font-semibold text-slate-900">{title}</p>
         {distance && <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-400">{distance}</p>}
       </div>

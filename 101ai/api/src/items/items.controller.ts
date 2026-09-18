@@ -4,12 +4,14 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { ItemsService } from './items.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { UpsertItemSectionDto } from './dto/upsert-item-section.dto';
+import { SetItemPinnedDto } from './dto/set-item-pinned.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { User } from '../users/user.entity';
@@ -68,5 +70,19 @@ export class ItemsController {
   @Delete('items/:id')
   deleteItem(@CurrentUser() user: User, @Param('id') id: string) {
     return this.itemsService.deleteItem(user.id, id);
+  }
+
+  @Patch('items/:id/pin')
+  setPinned(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() dto: SetItemPinnedDto,
+  ) {
+    return this.itemsService.setPinned(user.id, id, dto.pinned);
+  }
+
+  @Delete('items')
+  deleteAllItems(@CurrentUser() user: User) {
+    return this.itemsService.deleteAllForUser(user.id);
   }
 }

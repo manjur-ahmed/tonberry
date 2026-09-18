@@ -1,4 +1,4 @@
-import { Star } from 'lucide-react'
+import { Pin, Star } from 'lucide-react'
 
 interface ReadItemData {
   title: string
@@ -18,10 +18,15 @@ function isReadItemData(value: unknown): value is ReadItemData {
   return typeof data.title === 'string'
 }
 
-function ReadRecommendationsItemView({ title, data }: { title: string; data: unknown }) {
+function ReadRecommendationsItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   if (!isReadItemData(data)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        {pinned && (
+          <div className="mb-1 text-slate-400">
+            <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </div>
+        )}
         <p className="text-sm font-semibold text-slate-900">{title}</p>
       </div>
     )
@@ -33,6 +38,11 @@ function ReadRecommendationsItemView({ title, data }: { title: string; data: unk
         <img src={data.image.url} alt="" className="aspect-[2/3] w-12 flex-shrink-0 rounded-md object-cover" />
       )}
       <div className="min-w-0">
+        {pinned && (
+          <div className="mb-1 text-slate-400">
+            <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </div>
+        )}
         <h3 className="font-display text-2xl font-bold text-slate-900">
           {data.title}
           {data.year && <span className="text-slate-400"> ({data.year})</span>}

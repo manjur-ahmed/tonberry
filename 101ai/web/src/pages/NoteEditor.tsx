@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { ArrowUp, Copy, Send, Sparkles, Trash2 } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowUp, ClipboardCheck, Copy, Send, Sparkles, Trash2 } from 'lucide-react'
 import { getTool, type Tool } from '../tools/registry'
 import { generateContent } from '../lib/generate'
-import { getItem, saveItem, ItemLimitReachedError } from '../lib/items'
+import { deleteItem, getItem, saveItem, ItemLimitReachedError } from '../lib/items'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../lib/delay'
 import { hasSeenItemLimitNotice, markItemLimitNoticeSeen } from '../lib/itemLimitNotice'
 import { useKeyboardInset } from '../hooks/useKeyboardInset'
 import OptionsMenu from '../components/OptionsMenu'
+import ConfirmDialog from '../components/ConfirmDialog'
 import AttachmentMenu from '../components/AttachmentMenu'
 import SaveStatusIndicator from '../components/SaveStatusIndicator'
 import ItemLimitBanner from '../components/ItemLimitBanner'
@@ -39,12 +40,24 @@ function NoteEditor() {
   const {
     data: existingItem,
     isLoading,
+    isFetching,
     isError,
   } = useQuery({
     queryKey: ['item', noteId],
     queryFn: () => getItem(noteId!),
     enabled: !isNewNote,
   })
+
+  // Tracks which noteId the form has already been shown for. isFetching
+  // only needs to gate rendering the FIRST time a given note loads (see
+  // below) — once shown, this same query keeps refetching in the
+  // background every time NoteEditorForm's own autosave invalidates it
+  // (it's still mounted and active), and gating on isFetching for THAT too
+  // would unmount the form out from under the user's live typing on every
+  // save, which re-triggers its mount effects and re-saves again — a
+  // flicker/refetch loop, not just a one-off flash.
+  const loadedNoteIdRef = useRef<string | null>(null)
+  const isFreshLoad = loadedNoteIdRef.current !== (noteId ?? null)
 
   if (!tool) {
     return (
@@ -54,7 +67,14 @@ function NoteEditor() {
     )
   }
 
-  if (!isNewNote && isLoading) {
+  // isFetching (only on a fresh load — see above), not just isLoading —
+  // isLoading is already false the instant ANY cached value exists, even a
+  // stale one a background refetch (e.g. right after a save invalidated
+  // it) hasn't replaced yet. NoteEditorForm below only ever reads its
+  // initial props once (see its useState), so rendering it off a stale
+  // value here would lock that staleness in for the rest of the session
+  // instead of picking up the real, current one.
+  if (!isNewNote && (isLoading || (isFetching && isFreshLoad))) {
     return (
       <main className="px-4 py-6">
         <p className="text-slate-600">Loading...</p>
@@ -70,6 +90,8 @@ function NoteEditor() {
     )
   }
 
+  loadedNoteIdRef.current = noteId ?? null
+
   const state = location.state as { initialBody?: string; initialTitle?: string } | null
 
   return (
@@ -79,6 +101,7 @@ function NoteEditor() {
       initialTitle={existingItem?.title ?? state?.initialTitle ?? ''}
       initialBody={existingItem ? getBodyFromItemData(existingItem.data) : (state?.initialBody ?? '')}
       noteKey={existingItem?.dedupKey ?? undefined}
+      existingItemId={existingItem?.id}
     />
   )
 }
@@ -91,6 +114,11 @@ interface NoteEditorFormProps {
   // autosave keeps amending that same Item instead of forking a new one.
   // Undefined for a genuinely new note — a fresh one is generated below.
   noteKey?: string
+  // The existing item's real database id, for Delete (see savedItemId
+  // below) — distinct from noteKey/dedupKey, which identifies "the same
+  // logical item" for upsert matching, not the row to actually delete.
+  // Undefined for a genuinely new note that hasn't autosaved yet.
+  existingItemId?: string
 }
 
 // The actual editor — title/body local state, autosaved as a real Item
@@ -100,8 +128,9 @@ interface NoteEditorFormProps {
 // keep asking for help without leaving it — each send calls the same
 // generate endpoint and appends the reply to the note rather than starting
 // a new chat thread.
-function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp }: NoteEditorFormProps) {
+function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp, existingItemId }: NoteEditorFormProps) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const keyboardInset = useKeyboardInset()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [title, setTitle] = useState(initialTitle)
@@ -109,6 +138,10 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp 
   const [draft, setDraft] = useState('')
   const [isComposeFocused, setIsComposeFocused] = useState(false)
   const [noteKey] = useState(() => noteKeyProp ?? crypto.randomUUID())
+  // The real Item id to delete, distinct from noteKey/dedupKey (see
+  // NoteEditorFormProps.existingItemId) — undefined until either reopening
+  // an already-saved note, or this note's own first autosave resolves.
+  const [savedItemId, setSavedItemId] = useState(existingItemId)
 
   const saveMutation = useMutation({
     mutationFn: (vars: { title: string; body: string }) => {
@@ -118,10 +151,32 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp 
       // spinner rather than flash past unreadably.
       return withMinDuration(request, MIN_SAVE_SPINNER_MS)
     },
+    // Without this, every other view's cached item list (ToolDashboard,
+    // Recent, ItemPickerSheet) keeps showing whatever it last fetched —
+    // stale, or possibly a snapshot read racing this very save's write —
+    // until something else happens to force a refetch. Invalidating here,
+    // once the save is actually confirmed committed, closes that race
+    // instead of leaving it to a lucky remount. ['items']/['item'] match as
+    // prefixes, so this covers every keying variant in one call.
+    onSuccess: (savedItem) => {
+      setSavedItemId(savedItem.id)
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      queryClient.invalidateQueries({ queryKey: ['item'] })
+    },
     onError: (error) => {
       if (error instanceof ItemLimitReachedError && !hasSeenItemLimitNotice(noteKey)) {
         markItemLimitNoticeSeen(noteKey)
       }
+    },
+  })
+
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
+
+  const deleteItemMutation = useMutation({
+    mutationFn: () => deleteItem(savedItemId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      navigate(-1)
     },
   })
 
@@ -171,14 +226,31 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp 
   // paused for a beat, not on every keystroke. Skipped entirely while the
   // note is genuinely empty (nothing worth saving yet), which also means a
   // blank new note doesn't autosave the instant it's opened.
+  const pendingAutosaveRef = useRef<{ title: string; body: string } | null>(null)
+
   useEffect(() => {
     if (!title.trim() && !body.trim()) return
+    const vars = { title, body }
+    pendingAutosaveRef.current = vars
     const timeout = setTimeout(() => {
-      queueSave({ title, body })
+      pendingAutosaveRef.current = null
+      queueSave(vars)
     }, 1000)
     return () => clearTimeout(timeout)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title, body])
+
+  // Flushes a still-pending debounced save on unmount (e.g. hitting back
+  // within the 1s window above) — without this, the timeout cleanup just
+  // cancels it and the last edit is silently lost, never sent at all.
+  useEffect(() => {
+    return () => {
+      if (pendingAutosaveRef.current) {
+        queueSave(pendingAutosaveRef.current)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -210,9 +282,21 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp 
     generateMutation.mutate(draft)
   }
 
+  const [copied, setCopied] = useState(false)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    }
+  }, [])
+
   function handleCopyAll() {
     const text = title.trim() ? `${title}\n\n${body}` : body
     navigator.clipboard.writeText(text)
+    setCopied(true)
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
   }
 
   return (
@@ -232,17 +316,30 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp 
               save completes, unlike Chat.tsx's usage of this same
               indicator. 'saving' and the error states still show. */}
           {saveStatus && saveStatus !== 'saved' && <SaveStatusIndicator status={saveStatus} />}
-          {/* Copy all and the autosave above are real. Send to and Delete
-              are still placeholders — Send to has nowhere defined to go
-              yet, and Delete discards the draft and leaves rather than
-              actually deleting the now-real saved item. */}
+          {copied && (
+            <ClipboardCheck
+              className="h-4 w-4 text-emerald-500"
+              strokeWidth={1.75}
+              aria-label="Copied to clipboard"
+            />
+          )}
+          {/* Copy all and Delete are both real now. Send to is still a
+              placeholder — it has nowhere defined to go yet. */}
           <OptionsMenu
             triggerClassName="text-slate-500"
             iconClassName="h-5 w-5"
             items={[
               { label: 'Copy all', icon: Copy, onClick: handleCopyAll },
               { label: 'Send to', icon: Send, onClick: () => {} },
-              { label: 'Delete', icon: Trash2, tone: 'danger', onClick: () => navigate(-1) },
+              {
+                label: 'Delete',
+                icon: Trash2,
+                tone: 'danger',
+                disabled: deleteItemMutation.isPending,
+                // Nothing saved yet (a blank or never-autosaved new note) —
+                // there's no real item to delete or confirm, just leave.
+                onClick: () => (savedItemId ? setIsConfirmingDelete(true) : navigate(-1)),
+              },
             ]}
           />
         </div>
@@ -329,17 +426,38 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp 
             />
           </div>
 
-          <button
-            type="button"
-            disabled={!draft.trim() || generateMutation.isPending}
-            onClick={handleSend}
-            aria-label="Send"
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-white shadow-sm"
+          {/* Always rendered, not conditionally — see the AttachmentMenu
+              wrapper above for why (collapsing width/opacity is what
+              animates; swapping in/out of the tree snaps instantly). */}
+          <div
+            className={`flex-shrink-0 overflow-hidden transition-all duration-200 ease-in-out ${
+              isComposeFocused ? 'w-11 opacity-100' : 'w-0 opacity-0'
+            }`}
           >
-            <ArrowUp className="h-4 w-4" strokeWidth={2} />
-          </button>
+            <button
+              type="button"
+              disabled={!draft.trim() || generateMutation.isPending}
+              onClick={handleSend}
+              aria-label="Send"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-white shadow-sm"
+            >
+              <ArrowUp className="h-4 w-4" strokeWidth={2} />
+            </button>
+          </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={isConfirmingDelete}
+        title="Delete this note?"
+        description="This will permanently delete this note. This can't be undone."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          setIsConfirmingDelete(false)
+          deleteItemMutation.mutate()
+        }}
+        onCancel={() => setIsConfirmingDelete(false)}
+      />
     </main>
   )
 }

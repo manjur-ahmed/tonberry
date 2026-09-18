@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import pdfParse from 'pdf-parse';
+import * as mammoth from 'mammoth';
 import { Chat } from './chat.entity';
 import {
   AttachedItem,
@@ -40,6 +42,20 @@ interface GpsLocation {
 // tool. Add a new tool here (not a new service) if it's the same kind of
 // "find me a real product" request.
 const SHOPPING_TOOL_SLUGS = new Set(['shopping', 'clothing']);
+
+// Tools that opt into describeDocumentAttachments' richer, always-present
+// document-state context (see there) instead of the plain
+// describeNonImageAttachments every other tool gets — currently just
+// Document Explainer, whose entire purpose depends on it. Kept as a set
+// (not a single string check) so a future tool can opt in the same way
+// SHOPPING_TOOL_SLUGS lets a second tool share ShoppingService.
+const DOCUMENT_CONTEXT_TOOL_SLUGS = new Set(['document-explainer']);
+
+// Roughly 3,750 tokens at ~4 chars/token — generous for a several-page
+// document while still leaving real room in the prompt for conversation
+// history and the model's own reply, even with a couple of documents
+// attached in the same turn.
+const DOCUMENT_TEXT_CHAR_LIMIT = 15000;
 
 export type ChatResult =
   { type: 'redirect'; suggestedTool: string } | { type: 'reply'; chat: Chat };
@@ -162,6 +178,106 @@ export class ChatsService {
       "the user to paste the relevant text if you need to know what's " +
       `inside:\n${list}`
     );
+  }
+
+  private isDocumentAttachment(attachment: MessageAttachment): boolean {
+    return !this.isImageAttachment(attachment);
+  }
+
+  // pdf/txt/csv/docx only — an old-format .doc (application/msword — see
+  // ALLOWED_UPLOAD_CONTENT_TYPES) or an Excel file has no real parsing here
+  // yet, so it stays filename-only, same as describeNonImageAttachments
+  // handles it for every other tool. mammoth (the docx library) only
+  // understands the newer XML-based .docx format, not legacy binary .doc —
+  // there's no good pure-JS parser for that one. null (not '') for anything
+  // not extractable, so callers can tell "read but empty" apart from "can't
+  // read this type" if that ever matters.
+  private async extractDocumentText(
+    attachment: MessageAttachment,
+  ): Promise<string | null> {
+    if (attachment.contentType === 'text/plain' || attachment.contentType === 'text/csv') {
+      const buffer = await this.uploads.getObjectAsBuffer(attachment.key);
+      return buffer.toString('utf-8');
+    }
+    if (attachment.contentType === 'application/pdf') {
+      const buffer = await this.uploads.getObjectAsBuffer(attachment.key);
+      const parsed = await pdfParse(buffer);
+      return parsed.text;
+    }
+    if (
+      attachment.contentType ===
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ) {
+      const buffer = await this.uploads.getObjectAsBuffer(attachment.key);
+      const parsed = await mammoth.extractRawText({ buffer });
+      return parsed.value;
+    }
+    return null;
+  }
+
+  private truncateDocumentText(text: string): string {
+    if (text.length <= DOCUMENT_TEXT_CHAR_LIMIT) return text;
+    return `${text.slice(0, DOCUMENT_TEXT_CHAR_LIMIT)}\n\n[...truncated — the real document continues beyond what's shown here]`;
+  }
+
+  // Document Explainer's richer counterpart to describeNonImageAttachments
+  // above — see DOCUMENT_CONTEXT_TOOL_SLUGS for which tools use this
+  // instead. Document content, unlike text, is never re-sent on a later
+  // turn (same reasoning as resolveAttachmentsForVision's images: "the
+  // model doesn't need to re-see something it already responded to once"),
+  // so the model has to be TOLD what's already in play across the whole
+  // chat, not just shown it again — hence the always-present state line
+  // below, even on a turn with no new attachment. Full text is only ever
+  // extracted for whatever's attached on THIS specific turn; anything from
+  // an earlier turn is named only, leaning on the model's own prior reply
+  // as its memory of it.
+  private async describeDocumentAttachments(
+    currentAttachments: MessageAttachment[] | undefined,
+    priorMessages: Message[],
+  ): Promise<string | undefined> {
+    const priorDocuments = priorMessages
+      .flatMap((message) => message.attachments ?? [])
+      .filter((attachment) => this.isDocumentAttachment(attachment));
+    const currentDocuments = (currentAttachments ?? []).filter((attachment) =>
+      this.isDocumentAttachment(attachment),
+    );
+
+    if (priorDocuments.length === 0 && currentDocuments.length === 0) {
+      return 'No document has been attached in this chat yet.';
+    }
+
+    const allFilenames = [...priorDocuments, ...currentDocuments].map(
+      (document) => document.filename,
+    );
+    const stateLine = `Document(s) attached in this chat so far: ${allFilenames.join(', ')}.`;
+    if (currentDocuments.length === 0) return stateLine;
+
+    const extractedSections = await Promise.all(
+      currentDocuments.map(async (attachment) => {
+        const text = await this.extractDocumentText(attachment);
+        if (text === null) {
+          return (
+            `NEWLY ATTACHED — "${attachment.filename}" (${attachment.contentType}): ` +
+            "you can't see its contents — treat this only as knowledge that " +
+            "it exists, and ask the user to paste the relevant text if you " +
+            'need to know what\'s inside.'
+          );
+        }
+        return `NEWLY ATTACHED — "${attachment.filename}":\n${this.truncateDocumentText(text.trim())}`;
+      }),
+    );
+
+    const isFirstDocumentEver = priorDocuments.length === 0;
+    const continuationGuidance = isFirstDocumentEver
+      ? undefined
+      : "This isn't the first document in this chat — work out from what " +
+        'the user says now whether they want this new one brought into ' +
+        'the same discussion alongside the earlier document(s), or want to ' +
+        "shift focus to just this new one, rather than assuming either way.";
+
+    return [stateLine, continuationGuidance, ...extractedSections]
+      .filter((part): part is string => Boolean(part))
+      .join('\n\n');
   }
 
   // Merges itemContext and the non-image-attachment note into the single
@@ -324,6 +440,11 @@ export class ChatsService {
             assistantMessageId,
           )
         : null;
+    // No prior messages to scan for this branch — it's the first message
+    // in a brand new chat.
+    const documentContext = DOCUMENT_CONTEXT_TOOL_SLUGS.has(toolSlug)
+      ? await this.describeDocumentAttachments(attachments, [])
+      : this.describeNonImageAttachments(attachments);
     const replyContent = routeResult
       ? routeResult.replyText
       : shoppingResult
@@ -339,7 +460,7 @@ export class ChatsService {
             attachments: await this.resolveAttachmentsForVision(attachments),
             itemContext: this.combineContext(
               this.buildItemContext(attachedItems),
-              this.describeNonImageAttachments(attachments),
+              documentContext,
             ),
           });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
@@ -498,6 +619,9 @@ export class ChatsService {
             this.findPreviousProduct(chat.messages),
           )
         : null;
+    const documentContext = DOCUMENT_CONTEXT_TOOL_SLUGS.has(chat.toolSlug)
+      ? await this.describeDocumentAttachments(attachments, chat.messages)
+      : this.describeNonImageAttachments(attachments);
     const replyContent = routeResult
       ? routeResult.replyText
       : shoppingResult
@@ -518,7 +642,7 @@ export class ChatsService {
             attachments: await this.resolveAttachmentsForVision(attachments),
             itemContext: this.combineContext(
               this.buildItemContext(attachedItems),
-              this.describeNonImageAttachments(attachments),
+              documentContext,
             ),
           });
     const [userTimestamp, assistantTimestamp] = sequentialTimestamps(2);
@@ -606,5 +730,19 @@ export class ChatsService {
       where: { userId },
       order: { updatedAt: 'DESC' },
     });
+  }
+
+  // Scoped to userId so a user can't delete another user's chat by
+  // guessing its id (same reasoning as ItemsService.deleteItem). Its
+  // messages cascade-delete via the FK's ON DELETE CASCADE (see
+  // Message.chat) — no explicit cleanup needed here.
+  async deleteChat(userId: string, chatId: string): Promise<void> {
+    await this.chatsRepository.delete({ id: chatId, userId });
+  }
+
+  // Settings' "Reset chats" — every chat this user has, across every tool.
+  // Same cascade reasoning as deleteChat above, just unscoped by id.
+  async deleteAllForUser(userId: string): Promise<void> {
+    await this.chatsRepository.delete({ userId });
   }
 }

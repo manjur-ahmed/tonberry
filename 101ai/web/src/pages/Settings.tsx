@@ -19,10 +19,13 @@ import {
   UserX,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { setPlan } from '../lib/api'
+import { deleteAccount, setPlan } from '../lib/api'
+import { deleteAllChats } from '../lib/chats'
+import { deleteAllItems } from '../lib/items'
 import { getPlan, plans } from '../lib/plans'
 import Switch from '../components/Switch'
 import ConfirmDialog from '../components/ConfirmDialog'
+import LegalLinksFooter from '../components/LegalLinksFooter'
 
 type DialogKey = 'reset-chats' | 'remove-items' | 'unsubscribe' | 'delete-account'
 
@@ -78,6 +81,35 @@ function Settings() {
     },
   })
 
+  const resetChatsMutation = useMutation({
+    mutationFn: deleteAllChats,
+    // ['chats'] matches as a prefix — covers every per-tool/cross-tool
+    // chats query, same reasoning as every other chat-mutating invalidation
+    // in this codebase.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chats'] })
+      setActiveDialog(null)
+    },
+  })
+
+  const removeItemsMutation = useMutation({
+    mutationFn: deleteAllItems,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      setActiveDialog(null)
+    },
+  })
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: deleteAccount,
+    // No setActiveDialog(null) — the account (and its token) is gone,
+    // there's nothing left to show a closed dialog over.
+    onSuccess: () => {
+      signOut()
+      navigate('/', { replace: true })
+    },
+  })
+
   function handleSignOut() {
     signOut()
     navigate('/', { replace: true })
@@ -104,12 +136,16 @@ function Settings() {
       return
     }
     if (activeDialog === 'delete-account') {
-      signOut()
-      navigate('/', { replace: true })
+      deleteAccountMutation.mutate()
       return
     }
-    // No chats/items data model exists yet — nothing to actually clear.
-    setActiveDialog(null)
+    if (activeDialog === 'reset-chats') {
+      resetChatsMutation.mutate()
+      return
+    }
+    if (activeDialog === 'remove-items') {
+      removeItemsMutation.mutate()
+    }
   }
 
   if (!user) return null
@@ -250,6 +286,8 @@ function Settings() {
         </button>
       </div>
 
+      <LegalLinksFooter />
+
       {activeDialog && (
         <ConfirmDialog
           open
@@ -258,6 +296,7 @@ function Settings() {
           confirmLabel={dialogContent[activeDialog].confirmLabel}
           onConfirm={handleConfirm}
           onCancel={() => setActiveDialog(null)}
+          waitSeconds={5}
         />
       )}
     </main>

@@ -207,3 +207,13 @@ export async function getAllChats(): Promise<Chat[]> {
   if (!response.ok) throw new Error(`Failed to load chats: ${response.status}`)
   return response.json()
 }
+
+export async function deleteChat(chatId: string): Promise<void> {
+  const response = await authedFetch(`/chats/${chatId}`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(`Failed to delete chat: ${response.status}`)
+}
+
+export async function deleteAllChats(): Promise<void> {
+  const response = await authedFetch(`/chats`, { method: 'DELETE' })
+  if (!response.ok) throw new Error(`Failed to reset chats: ${response.status}`)
+}

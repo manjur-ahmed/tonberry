@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { API_URL, fetchMe, login, register, setToken } from '../lib/api'
+import LegalLinksFooter from '../components/LegalLinksFooter'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -147,6 +148,8 @@ function SignIn() {
           </>
         )}
       </form>
+
+      {isSignup && <LegalLinksFooter />}
     </main>
   )
 }

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import DefaultItemView from './default/ItemView'
 import WordHelperItemView from './word-helper/ItemView'
+import DocumentExplainerItemView from './document-explainer/ItemView'
 import MathsSolverItemView from './maths-solver/ItemView'
 import FilmRecommendationsItemView from './film-recommendations/ItemView'
 import ShowRecommendationsItemView from './show-recommendations/ItemView'
@@ -38,12 +39,18 @@ import WriterItemView from './writer/ItemView'
 export interface ItemViewProps {
   title: string
   data: unknown
+  // Renders a small grey pin icon as a sibling right before the card's own
+  // title element — never a separate "pinned" section, and never
+  // absolutely positioned over the card (see ToolDashboard.tsx's item
+  // grid), since that risked covering a title sitting flush in a corner.
+  pinned?: boolean
 }
 
 // Slug -> custom renderer for that tool's saved items. Anything not listed
 // here falls back to DefaultItemView (title only).
 const itemViews: Record<string, ComponentType<ItemViewProps>> = {
   'word-helper': WordHelperItemView,
+  'document-explainer': DocumentExplainerItemView,
   'maths-solver': MathsSolverItemView,
   'film-recommendations': FilmRecommendationsItemView,
   'show-recommendations': ShowRecommendationsItemView,
