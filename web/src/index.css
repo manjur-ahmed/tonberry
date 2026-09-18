@@ -1,1 +1,5 @@
 @import 'tailwindcss';
+
+@theme {
+  --font-goudy: 'Sorts Mill Goudy', serif;
+}

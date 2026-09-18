@@ -27,3 +27,22 @@ export async function createLead(input: CreateLeadInput) {
   }
   return response.json()
 }
+
+export interface CreateContactMessageInput {
+  name: string
+  email: string
+  message: string
+}
+
+export async function createContactMessage(input: CreateContactMessageInput) {
+  const response = await fetch(`${API_URL}/contact`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) {
+    const body = await response.json().catch(() => null)
+    throw new Error(body?.message?.[0] ?? `Submission failed: ${response.status}`)
+  }
+  return response.json()
+}

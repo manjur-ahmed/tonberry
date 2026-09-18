@@ -1,0 +1,63 @@
+name: Deploy tonberry api
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - ".github/workflows/deploy-api.yml"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC — no stored AWS keys
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
+
+      # Runs before the code deploy below, so the schema is never behind
+      # what the new Lambda code expects.
+      - name: Run database migrations
+        run: npm run migration:run
+        env:
+          DATABASE_URL: ${{ secrets.TONBERRY_DATABASE_URL }}
+
+      # Production-only node_modules, staged alongside dist/ — devDependencies
+      # (typescript, jest, eslint, ...) would otherwise bloat the zip.
+      - name: Stage Lambda package
+        run: |
+          rm -rf .lambda-build
+          mkdir .lambda-build
+          cp -r dist .lambda-build/
+          cp package.json package-lock.json .lambda-build/
+          cd .lambda-build
+          npm ci --omit=dev
+          rm package.json package-lock.json
+
+      - name: Zip Lambda package
+        run: cd .lambda-build && zip -qr ../lambda.zip .
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TONBERRY_GITHUB_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.TONBERRY_AWS_REGION }}
+
+      - run: |
+          aws lambda update-function-code \
+            --function-name ${{ vars.TONBERRY_LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://lambda.zip
