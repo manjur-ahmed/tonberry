@@ -89,7 +89,12 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       {
         Sid    = "AccessTerraformState"
         Effect = "Allow"
-        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+        # DeleteObject is for use_lockfile's .tflock object — Terraform
+        # deletes it to release the lock once an operation finishes.
+        # Missing it broke the first real CI run past this point
+        # (2026-09-19): plan succeeded but then failed trying to release
+        # its own lock.
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"]
         Resource = [
           "arn:aws:s3:::tonberry-101ai-tfstate-396608771464",
           "arn:aws:s3:::tonberry-101ai-tfstate-396608771464/101ai/terraform.tfstate*",
