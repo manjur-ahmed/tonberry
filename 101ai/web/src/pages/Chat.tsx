@@ -1,14 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowDown, ArrowUp, Brain, Camera, File as FileIcon, Image as ImageIcon, Info, Layers, Loader2, MapPin, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Brain, Camera, File as FileIcon, Image as ImageIcon, Info, Layers, Loader2, MapPin, Trash2, X } from 'lucide-react'
 import { getTool } from '../tools/registry'
 import AttachmentMenu from '../components/AttachmentMenu'
+import OptionsMenu from '../components/OptionsMenu'
+import ConfirmDialog from '../components/ConfirmDialog'
 import ItemPickerSheet from '../components/ItemPickerSheet'
 import CompactItemCard from '../components/CompactItemCard'
 import FileAttachmentChip from '../components/FileAttachmentChip'
 import { useAuth } from '../hooks/useAuth'
-import { addMessage, createChat, getChat, type Chat as ChatData, type ChatMessage, type GpsLocation } from '../lib/chats'
+import { addMessage, createChat, deleteChat, getChat, type Chat as ChatData, type ChatMessage, type GpsLocation } from '../lib/chats'
 import {
   getCachedGpsLocation,
   queryGeolocationPermission,
@@ -115,11 +117,15 @@ function Chat() {
   const { slug, chatId } = useParams<{ slug: string; chatId: string }>()
   const location = useLocation()
   const tool = slug ? getTool(slug) : undefined
-  const { user } = useAuth()
+  const { user, isLoading: isAuthLoading } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const keyboardInset = useKeyboardInset()
+
+  useEffect(() => {
+    if (!isAuthLoading && !user) navigate('/sign-in', { replace: true })
+  }, [isAuthLoading, user, navigate])
 
   // ToolDashboard hands off a freshly-typed first message via router state
   // rather than creating the chat itself — that way the very first reply
@@ -326,6 +332,20 @@ function Chat() {
     if (isUnauthorized) navigate('/sign-in', { replace: true })
   }, [isUnauthorized, navigate])
 
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
+
+  const deleteChatMutation = useMutation({
+    mutationFn: () => deleteChat(chatId!),
+    // ['chats'] matches as a prefix, covering both this tool's dashboard
+    // list and Recent's cross-tool one (see ToolDashboard's identical
+    // reasoning) — this chat itself is gone, so there's nothing left to
+    // invalidate it back into.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chats'] })
+      navigate(`/tools/${slug}/dashboard`)
+    },
+  })
+
   const hasMemory = user?.plan === 'plus' || user?.plan === 'premium'
 
   useEffect(() => {
@@ -507,13 +527,17 @@ function Chat() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // A photo (or item) with no caption still needs some non-empty content
-  // (see AddMessageDto/CreateChatDto's @MinLength(1)) — the attachment
-  // itself is the actual message in that case.
-  function fallbackContent(attachmentCount: number, items: Item[]): string {
+  // A photo/file (or item) with no caption still needs some non-empty
+  // content (see AddMessageDto/CreateChatDto's @MinLength(1)) — the
+  // attachment itself is the actual message in that case. "image" only
+  // when every attachment actually is one — a document (or a mix of a
+  // document and a photo) reads as "file" instead.
+  function fallbackContent(attachments: PendingAttachment[], items: Item[]): string {
     if (items.length === 1) return `See attached ${items[0].title}.`
     if (items.length > 1) return 'See attached items.'
-    return attachmentCount > 1 ? 'See attached images.' : 'See attached image.'
+    const allImages = attachments.length > 0 && attachments.every((attachment) => attachment.contentType.startsWith('image/'))
+    const noun = allImages ? 'image' : 'file'
+    return attachments.length > 1 ? `See attached ${noun}s.` : `See attached ${noun}.`
   }
 
   function handleSend() {
@@ -521,7 +545,7 @@ function Chat() {
     if (!draft.trim() && pendingAttachments.length === 0 && pendingItems.length === 0) return
     const uploaded = pendingAttachments.filter((attachment) => attachment.uploaded)
     sendMutation.mutate({
-      content: draft.trim() || fallbackContent(uploaded.length, pendingItems),
+      content: draft.trim() || fallbackContent(uploaded, pendingItems),
       attachments: uploaded.length > 0 ? uploaded.map((attachment) => attachment.uploaded!) : undefined,
       previewUrls: uploaded.length > 0 ? uploaded.map((attachment) => attachment.previewUrl) : undefined,
       itemIds: pendingItems.length > 0 ? pendingItems.map((item) => item.id) : undefined,
@@ -600,16 +624,33 @@ function Chat() {
     // slack under the last message when the textarea is only one line.
     <main className="px-4 pb-56">
       <div className="sticky top-0 z-10 -mx-4 bg-white px-4 pb-3 pt-6">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(`/tools/${tool.slug}/dashboard`)}
-            aria-label="Back to tool"
-            className="text-2xl text-slate-900"
-          >
-            ←
-          </button>
-          <h1 className="font-display text-xl font-semibold text-slate-900">{tool.name}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/tools/${tool.slug}/dashboard`)}
+              aria-label="Back to tool"
+              className="text-2xl text-slate-900"
+            >
+              ←
+            </button>
+            <h1 className="font-display text-xl font-extrabold text-slate-900">{tool.name}</h1>
+          </div>
+          {!isNewChat && (
+            <OptionsMenu
+              triggerClassName="text-slate-500"
+              iconClassName="h-5 w-5"
+              items={[
+                {
+                  label: 'Delete',
+                  icon: Trash2,
+                  tone: 'danger',
+                  disabled: deleteChatMutation.isPending,
+                  onClick: () => setIsConfirmingDelete(true),
+                },
+              ]}
+            />
+          )}
         </div>
       </div>
 
@@ -769,24 +810,6 @@ function Chat() {
           />
         )}
 
-        {tool.needsLocation && gpsLocation && keyboardInset === 0 && !redirectSuggestion && (
-          <ToolNotice
-            icon={MapPin}
-            message={
-              isLocating ? (
-                'Updating your location…'
-              ) : (
-                <>
-                  Using your saved location ({gpsLocation.lat.toFixed(3)}, {gpsLocation.lng.toFixed(3)}).{' '}
-                  <button type="button" onClick={handleAllowLocation} className="underline">
-                    Update location
-                  </button>
-                </>
-              )
-            }
-          />
-        )}
-
         {redirectSuggestion ? (
           <RedirectSuggestion toolSlug={redirectSuggestion.toolSlug} onStayHere={handleStayHere} />
         ) : (
@@ -897,7 +920,7 @@ function Chat() {
                   handleSend()
                 }}
                 aria-label="Send"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2} />
               </button>
@@ -935,6 +958,18 @@ function Chat() {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={isConfirmingDelete}
+        title="Delete this chat?"
+        description="This will permanently delete this chat. This can't be undone."
+        confirmLabel="Delete"
+        onConfirm={() => {
+          setIsConfirmingDelete(false)
+          deleteChatMutation.mutate()
+        }}
+        onCancel={() => setIsConfirmingDelete(false)}
+      />
     </main>
   )
 }

@@ -115,4 +115,15 @@ export class UploadsService {
     const bytes = await response.Body!.transformToByteArray();
     return `data:${contentType};base64,${Buffer.from(bytes).toString('base64')}`;
   }
+
+  // For document text extraction (see ChatsService.extractDocumentText) —
+  // the raw bytes, not wrapped as a data: URI like getObjectAsDataUrl above,
+  // since a PDF/text parser wants a Buffer, not a base64 string.
+  async getObjectAsBuffer(key: string): Promise<Buffer> {
+    const response = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+    );
+    const bytes = await response.Body!.transformToByteArray();
+    return Buffer.from(bytes);
+  }
 }

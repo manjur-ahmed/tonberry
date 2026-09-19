@@ -49,7 +49,7 @@ function ChangePassword() {
         <ChevronLeft className="h-6 w-6" strokeWidth={1.75} />
       </button>
 
-      <h1 className="mt-4 font-display text-2xl font-semibold text-slate-900">Change password</h1>
+      <h1 className="mt-4 font-display text-2xl font-extrabold text-slate-900">Change password</h1>
       <p className="mt-2 text-sm text-slate-600">
         {user.hasPassword
           ? 'Update the password you use to sign in with email.'

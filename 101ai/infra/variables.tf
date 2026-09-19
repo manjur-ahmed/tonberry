@@ -36,6 +36,12 @@ variable "admin_email" {
   type        = string
 }
 
+variable "google_api_key" {
+  description = "Server-side Google Maps key (Routes API + Places API (New) — see GoogleMapsClient) — the SAME value as web/.env's VITE_GOOGLE_MAPS_BROWSER_API_KEY, one shared key by design (see that var's own comment). Was already sitting in terraform.tfvars but never actually wired into the Lambda's env — GoogleMapsClient has been silently getting an empty key in prod ever since (root cause of the reported 'Google Maps API not working' bug)."
+  type        = string
+  sensitive   = true
+}
+
 variable "youtube_api_key" {
   description = "YouTube Data API v3 key for embedded videos (see YoutubeClient) — separate credential from google_api_key/google_oauth_*, restricted to just the YouTube Data API v3"
   type        = string

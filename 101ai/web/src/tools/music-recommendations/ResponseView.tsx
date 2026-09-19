@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Play } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import DefaultResponse from '../default/ResponseView'
+import YoutubeEmbed from '../../components/YoutubeEmbed'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
+import { fetchYoutubeVideo, type YoutubeVideo } from '../../lib/youtube'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { formatPlays } from '../../lib/formatPlays'
@@ -17,6 +19,14 @@ interface Song {
   summary: string | null
   whyRecommended: string | null
   spotifyPlays: number | null
+  // A short real search phrase, only ever set when the model is confident
+  // this is a real, findable song (see tool-config.ts's
+  // VIDEO_KEYWORDS_GUIDANCE) — never a URL/video ID itself.
+  videoKeywords: string | null
+  // Only present once a saved item is reopened (see ItemDetailModal) — the
+  // real video resolved and saved the first time this song was searched.
+  // Never present on a live turn's own JSON straight from the model.
+  video?: YoutubeVideo
 }
 
 interface MusicRecommendations {
@@ -64,7 +74,7 @@ function dedupKey(song: Song): string {
   return `${song.title}::${song.artist ?? ''}`.toLowerCase()
 }
 
-function SongCard({ song }: { song: Song }) {
+function SongCard({ song, video }: { song: Song; video?: YoutubeVideo }) {
   return (
     <div className="bg-white pt-4">
       <h3 className="font-display text-xl font-bold text-slate-900">
@@ -86,6 +96,7 @@ function SongCard({ song }: { song: Song }) {
           <span>{formatPlays(song.spotifyPlays)} plays on Spotify</span>
         </div>
       )}
+      {video && <YoutubeEmbed video={video} />}
     </div>
   )
 }
@@ -115,6 +126,34 @@ function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, re
     data = null
   }
 
+  // One real YouTube search per song, only for songs the model flagged as
+  // confidently findable (videoKeywords set — see tool-config.ts). `null`
+  // at index i means "no video for this song" — the array itself being
+  // non-null is what means "resolved" (see videoReady below). A reopened
+  // saved item already carries its final video (if any) straight in
+  // `song.video`, so it never re-searches.
+  const [videos, setVideos] = useState<(YoutubeVideo | null)[] | null>(() => {
+    if (!data) return null
+    if (readOnly) return data.songs.map((song) => song.video ?? null)
+    return null
+  })
+
+  useEffect(() => {
+    if (!data || readOnly) return
+    let cancelled = false
+    Promise.all(
+      data.songs.map((song) => (song.videoKeywords ? fetchYoutubeVideo(song.videoKeywords) : Promise.resolve(null))),
+    ).then((results) => {
+      if (!cancelled) setVideos(results)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const videoReady = !data || readOnly || videos !== null
+
   const saveMutation = useMutation({
     mutationFn: () => {
       if (!data) throw new Error('Nothing to save')
@@ -123,9 +162,18 @@ function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, re
       // rather than piling up duplicates. Promise.all here means one song
       // hitting the free-plan item limit surfaces as the overall save
       // failing (onError below), even though any songs saved before the
-      // limit was hit stay saved.
+      // limit was hit stay saved. Carries each song's resolved video (if
+      // any) into the saved data.
       const request = Promise.all(
-        data.songs.map((song) => saveItem(toolSlug, chatId, song.title, song, dedupKey(song))),
+        data.songs.map((song, index) =>
+          saveItem(
+            toolSlug,
+            chatId,
+            song.title,
+            { ...song, video: videos?.[index] ?? undefined },
+            dedupKey(song),
+          ),
+        ),
       )
       // This resolves near-instantly today, but the spinner should still
       // read as a spinner rather than flash by — holds it open at least
@@ -147,6 +195,8 @@ function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, re
   // message instance (component is freshly mounted per message.id) — the
   // ref guard is only to dodge StrictMode's dev-mode double-invoke; the
   // dedup key already makes a genuine double-call harmless either way.
+  // Waits on videoReady so the save carries each song's real resolved
+  // video rather than racing the search.
   //
   // Reopening a chat remounts this for every historical message too, so a
   // message whose items already saved successfully skips straight to
@@ -160,10 +210,11 @@ function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, re
       return
     }
     if (hasSavedRef.current) return
+    if (!videoReady) return
     hasSavedRef.current = true
     saveMutation.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [videoReady])
 
   // Reports the plain-text version up to Chat.tsx so its copy button copies
   // the recommendations, not this message's raw JSON (see
@@ -183,8 +234,8 @@ function MusicRecommendationsResponse({ content, toolSlug, chatId, messageId, re
     // icons and reads as if they belong to that song specifically rather
     // than to the whole multi-song response.
     <div className="space-y-4 pb-2">
-      {data.songs.map((song) => (
-        <SongCard key={dedupKey(song)} song={song} />
+      {data.songs.map((song, index) => (
+        <SongCard key={dedupKey(song)} song={song} video={videos?.[index] ?? undefined} />
       ))}
     </div>
   )

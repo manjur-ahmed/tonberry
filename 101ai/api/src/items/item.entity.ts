@@ -38,6 +38,12 @@ export class Item {
   @Column({ name: 'dedup_key', type: 'varchar', nullable: true })
   dedupKey: string | null;
 
+  // A pinned item sorts to the top of every list (see getItemsForTool/
+  // getAllItems' ORDER BY) — no separate "Pinned" section, just reordered
+  // in place, so it stays wherever else it'd normally show up.
+  @Column({ default: false })
+  pinned: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

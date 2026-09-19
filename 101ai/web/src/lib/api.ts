@@ -25,9 +25,14 @@ export interface CurrentUser {
   email: string
   name: string | null
   otherNames: string | null
-  plan: 'free' | 'plus' | 'premium' | null
+  plan: 'basic' | 'plus' | 'premium' | null
   country: string | null
   darkTheme: boolean
+  dateOfBirth: string | null
+  // Set once the user taps "Continue with free trial" on /pricing — see
+  // the backend User entity's comment. Still null for a user who instead
+  // picked a real plan directly, or hasn't done either yet.
+  trialStartedAt: string | null
   hasPassword: boolean
 }
 
@@ -58,7 +63,7 @@ export async function fetchMe(): Promise<CurrentUser | null> {
   return response.json()
 }
 
-export async function setPlan(plan: 'free' | 'plus' | 'premium'): Promise<CurrentUser> {
+export async function setPlan(plan: 'basic' | 'plus' | 'premium'): Promise<CurrentUser> {
   const token = getToken()
   const response = await fetch(`${API_URL}/users/plan`, {
     method: 'PATCH',
@@ -72,11 +77,25 @@ export async function setPlan(plan: 'free' | 'plus' | 'premium'): Promise<Curren
   return response.json()
 }
 
+export async function startTrial(): Promise<CurrentUser> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/users/trial`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(`Failed to start trial: ${response.status}`)
+  return response.json()
+}
+
+// All optional — see the backend's SetPreferencesDto/setPreferences for
+// why: each onboarding step (Country, Location, Theme) PATCHes only the
+// field(s) it actually collects, not the whole set every time.
 export interface Preferences {
-  name: string
+  name?: string
   otherNames?: string
-  country: string
-  darkTheme: boolean
+  country?: string
+  darkTheme?: boolean
+  dateOfBirth?: string
 }
 
 export async function setPreferences(preferences: Preferences): Promise<CurrentUser> {
@@ -113,6 +132,15 @@ export async function register(name: string, email: string, password: string): P
   return response.json()
 }
 
+export async function deleteAccount(): Promise<void> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/users/me`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(await readErrorMessage(response, 'Could not delete account — try again.'))
+}
+
 export async function setPassword(newPassword: string): Promise<CurrentUser> {
   const token = getToken()
   const response = await fetch(`${API_URL}/users/password`, {
@@ -137,7 +165,7 @@ export interface UsageSummary {
   timeSeries: { date: string; totalCostUsd: number; requestCount: number }[]
   byModel: { model: string; totalCostUsd: number; totalTokens: number; requestCount: number }[]
   byPlan: {
-    plan: 'free' | 'plus' | 'premium' | null
+    plan: 'basic' | 'plus' | 'premium' | null
     totalCostUsd: number
     avgCostPerResponseUsd: number
     requestCount: number
@@ -154,6 +182,85 @@ export async function getUsageSummary(range: UsageRange): Promise<UsageSummary> 
   })
   if (!response.ok) throw new Error(`Failed to load usage summary: ${response.status}`)
   return response.json()
+}
+
+export type BillingCycle = 'monthly' | 'yearly' | 'one_time'
+
+export interface RecurringCost {
+  id: string
+  name: string
+  category: string | null
+  amountUsd: string
+  billingCycle: BillingCycle
+  renewsAt: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RecurringCostsSummary {
+  costs: RecurringCost[]
+  monthlyTotalUsd: number
+}
+
+export interface RecurringCostInput {
+  name: string
+  category?: string | null
+  amountUsd: number
+  billingCycle: BillingCycle
+  renewsAt?: string | null
+  notes?: string | null
+}
+
+// Admin-only (same AdminGuard as getUsageSummary above) — the manually
+// maintained "everything we pay for" ledger behind AdminCosts.tsx.
+export async function getRecurringCosts(): Promise<RecurringCostsSummary> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/admin/costs`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(`Failed to load recurring costs: ${response.status}`)
+  return response.json()
+}
+
+export async function createRecurringCost(input: RecurringCostInput): Promise<RecurringCost> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/admin/costs`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) throw new Error(`Failed to create recurring cost: ${response.status}`)
+  return response.json()
+}
+
+export async function updateRecurringCost(
+  id: string,
+  input: Partial<RecurringCostInput>,
+): Promise<RecurringCost> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/admin/costs/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  })
+  if (!response.ok) throw new Error(`Failed to update recurring cost: ${response.status}`)
+  return response.json()
+}
+
+export async function deleteRecurringCost(id: string): Promise<void> {
+  const token = getToken()
+  const response = await fetch(`${API_URL}/admin/costs/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) throw new Error(`Failed to delete recurring cost: ${response.status}`)
 }
 
 export type DebugTestType = 'http500' | 'slow' | 'notfound' | 'log'

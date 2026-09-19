@@ -29,6 +29,7 @@ async function bootstrap(): Promise<Handler> {
   // Lambda writes to stdout.
   app.useLogger(new StructuredLogger());
   app.enableCors({
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:5174',
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE'],
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

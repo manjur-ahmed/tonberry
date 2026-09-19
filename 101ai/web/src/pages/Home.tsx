@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import ToolCard from '../components/ToolCard'
 import ProgressRing from '../components/ProgressRing'
 import Skeleton from '../components/Skeleton'
-import { categories, getTool, visibleTools, type Tool } from '../tools/registry'
+import { categories, getTool, searchTools, visibleTools, type Tool } from '../tools/registry'
 import { useAuth } from '../hooks/useAuth'
 import { getSavedSlugs } from '../lib/savedTools'
 import { getPlan, plans } from '../lib/plans'
@@ -66,13 +66,7 @@ function Home() {
     .map((slug) => getTool(slug))
     .filter((tool): tool is Tool => !!tool && !tool.hidden)
 
-  const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    return visibleTools.filter(
-      (tool) => tool.name.toLowerCase().includes(q) || tool.description.toLowerCase().includes(q),
-    )
-  }, [query])
+  const searchResults = useMemo(() => searchTools(query), [query])
 
   return (
     // @container — the horizontal-scroll rows below size each card off this
@@ -84,7 +78,9 @@ function Home() {
           <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-300/40 blur-2xl" />
           <div className="pointer-events-none absolute -left-16 top-20 h-32 w-32 rounded-full bg-indigo-200/50 blur-2xl" />
 
-          <h1 className="relative font-display text-4xl font-semibold leading-tight text-slate-900">
+          <img src="/logo-large-header.png" alt="101 AI Tools" width={280} height={105} className="relative h-10 w-auto" />
+
+          <h1 className="relative mt-6 font-display text-4xl font-extrabold leading-tight text-slate-900">
             Welcome, jump right in
           </h1>
 
@@ -116,11 +112,9 @@ function Home() {
           </div>
         ) : (
           user && (
-            <div className="mb-6 flex items-start justify-between gap-3">
-              <h1 className="font-display text-3xl font-semibold leading-tight text-slate-900">
-                Hi,
-                <br />
-                ready when you are
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <h1 className="font-display text-2xl font-extrabold leading-tight text-slate-900">
+                Hi, ready when you are
               </h1>
               <div className="relative" ref={chatsRingRef}>
                 <button
@@ -153,7 +147,7 @@ function Home() {
           user &&
           savedTools.length > 0 && (
             <div className="mb-10">
-              <h2 className="font-display text-2xl font-semibold text-slate-900">Saved</h2>
+              <h2 className="font-display text-2xl font-semibold text-slate-900">Pinned</h2>
               <div className="-mx-4 mt-4 flex gap-6 overflow-x-auto px-4 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {savedTools.map((tool) => (
                   <div key={tool.slug} className="h-[170px] w-[calc((100cqw-5rem)/2)] flex-shrink-0">
@@ -178,9 +172,20 @@ function Home() {
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search tools"
             // text-base, not text-sm — avoids iOS Safari's auto-zoom-on-focus
-            // for inputs under 16px.
-            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+            // for inputs under 16px. pr-10 (not pr-4) reserves room for the
+            // clear button below without the typed text running under it.
+            className="w-full rounded-full border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-base text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
           />
+          {isSearching && (
+            <button
+              type="button"
+              onClick={() => setQuery('')}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" strokeWidth={1.75} />
+            </button>
+          )}
         </div>
 
         {isSearching ? (

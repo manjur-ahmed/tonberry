@@ -38,17 +38,39 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.AI101_DATABASE_URL }}
 
-      # Production-only node_modules, staged alongside dist/ — devDependencies
-      # (typescript, jest, eslint, ...) would otherwise bloat the zip.
-      - name: Stage Lambda package
+      # node_modules ships as a separate Lambda layer now (see
+      # aws_lambda_layer_version.dependencies in backend_api.tf) instead of
+      # being bundled into the function's own zip — the function package
+      # below is just dist/, which is the real fix for cold starts (a 25MB
+      # monolithic zip was one of the two contributors an audit found; the
+      # other, provisioned concurrency, is a deliberate follow-up given its
+      # ongoing per-GB-second cost).
+      #
+      # ORDERING NOTE: the layer itself is Terraform-managed, not deployed
+      # by this workflow. `terraform apply` must attach a layer built from
+      # the current package-lock.json before (or in the same rollout as) a
+      # code deploy that excludes node_modules — otherwise the live
+      # function is left missing its dependencies until the layer catches
+      # up. Rebuilding the layer on every run keeps it simple and it's
+      # cheap either way; only the version actually attached via
+      # `terraform apply` takes effect.
+      - name: Stage Lambda layer (production dependencies)
+        run: |
+          rm -rf .lambda-layer-build
+          mkdir -p .lambda-layer-build/nodejs
+          cp package.json package-lock.json .lambda-layer-build/nodejs/
+          cd .lambda-layer-build/nodejs
+          npm ci --omit=dev
+          rm package.json package-lock.json
+
+      - name: Zip Lambda layer
+        run: cd .lambda-layer-build && zip -qr ../../infra/layer.zip .
+
+      - name: Stage Lambda package (app code only)
         run: |
           rm -rf .lambda-build
           mkdir .lambda-build
           cp -r dist .lambda-build/
-          cp package.json package-lock.json .lambda-build/
-          cd .lambda-build
-          npm ci --omit=dev
-          rm package.json package-lock.json
 
       - name: Zip Lambda package
         run: cd .lambda-build && zip -qr ../lambda.zip .

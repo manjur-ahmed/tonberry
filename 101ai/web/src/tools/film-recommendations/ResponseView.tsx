@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Star } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import DefaultResponse from '../default/ResponseView'
 import { saveItem, ItemLimitReachedError } from '../../lib/items'
+import { fetchMovieImage, type RecommendationImage } from '../../lib/images'
 import { withMinDuration, MIN_SAVE_SPINNER_MS } from '../../lib/delay'
 import { hasSavedItemForMessage, markItemSavedForMessage } from '../../lib/savedMessageItems'
 import { buildCardListCopyText } from '../../lib/copyText'
@@ -15,6 +16,10 @@ interface Film {
   summary: string | null
   whyRecommended: string | null
   imdbRating: number | null
+  // Only present once a saved item is reopened (see ItemDetailModal) — the
+  // real poster resolved and saved the first time this film was searched.
+  // Never present on a live turn's own JSON straight from the model.
+  image?: RecommendationImage
 }
 
 interface FilmRecommendations {
@@ -56,27 +61,35 @@ function Label({ children }: { children: string }) {
   return <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400">{children}</h3>
 }
 
-function FilmCard({ film }: { film: Film }) {
+function FilmCard({ film, image }: { film: Film; image?: RecommendationImage }) {
   return (
-    <div className="bg-white pt-4">
-      <h3 className="font-display text-xl font-bold text-slate-900">
-        {film.title}
-        {film.year && <span className="text-slate-400"> ({film.year})</span>}
-      </h3>
-      {film.genre && <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{film.genre}</p>}
-      {film.summary && <p className="mt-3 text-sm text-slate-700">{film.summary}</p>}
-      {film.whyRecommended && (
-        <div className="mt-3">
-          <Label>Why this one</Label>
-          <p className="mt-1 text-sm text-slate-700">{film.whyRecommended}</p>
+    <div className="flex gap-3 bg-white pt-4">
+      {image && (
+        <div className="w-20 flex-shrink-0">
+          <img src={image.url} alt="" className="aspect-[2/3] w-full rounded-lg object-cover" />
+          <p className="mt-1 text-center text-[10px] text-slate-400">Image: {image.source}</p>
         </div>
       )}
-      {film.imdbRating != null && (
-        <div className="mt-3 flex items-center gap-1 text-sm text-slate-700">
-          <Star className="h-4 w-4 text-amber-400" strokeWidth={1.75} fill="currentColor" />
-          <span>{film.imdbRating.toFixed(1)}/10 on IMDb</span>
-        </div>
-      )}
+      <div className="min-w-0 flex-1">
+        <h3 className="font-display text-xl font-bold text-slate-900">
+          {film.title}
+          {film.year && <span className="text-slate-400"> ({film.year})</span>}
+        </h3>
+        {film.genre && <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{film.genre}</p>}
+        {film.summary && <p className="mt-3 text-sm text-slate-700">{film.summary}</p>}
+        {film.whyRecommended && (
+          <div className="mt-3">
+            <Label>Why this one</Label>
+            <p className="mt-1 text-sm text-slate-700">{film.whyRecommended}</p>
+          </div>
+        )}
+        {film.imdbRating != null && (
+          <div className="mt-3 flex items-center gap-1 text-sm text-slate-700">
+            <Star className="h-4 w-4 text-amber-400" strokeWidth={1.75} fill="currentColor" />
+            <span>{film.imdbRating.toFixed(1)}/10 on IMDb</span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -105,6 +118,30 @@ function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
     data = null
   }
 
+  // One real poster lookup per film. `null` at index i means "no image
+  // found" — the array itself being non-null is what means "resolved" (see
+  // imagesReady below). A reopened saved item already carries its final
+  // image (if any) straight in `film.image`, so it never re-searches.
+  const [images, setImages] = useState<(RecommendationImage | null)[] | null>(() => {
+    if (!data) return null
+    if (readOnly) return data.films.map((film) => film.image ?? null)
+    return null
+  })
+
+  useEffect(() => {
+    if (!data || readOnly) return
+    let cancelled = false
+    Promise.all(data.films.map((film) => fetchMovieImage(film.title, film.year))).then((results) => {
+      if (!cancelled) setImages(results)
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const imagesReady = !data || readOnly || images !== null
+
   const saveMutation = useMutation({
     mutationFn: () => {
       if (!data) throw new Error('Nothing to save')
@@ -113,8 +150,17 @@ function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
       // duplicates. Promise.all here means one film hitting the free-plan
       // item limit surfaces as the overall save failing (onError below),
       // even though any films saved before the limit was hit stay saved.
+      // Carries each film's resolved image (if any) into the saved data.
       const request = Promise.all(
-        data.films.map((film) => saveItem(toolSlug, chatId, film.title, film, film.title.toLowerCase())),
+        data.films.map((film, index) =>
+          saveItem(
+            toolSlug,
+            chatId,
+            film.title,
+            { ...film, image: images?.[index] ?? undefined },
+            film.title.toLowerCase(),
+          ),
+        ),
       )
       // This resolves near-instantly today, but the spinner should still
       // read as a spinner rather than flash by — holds it open at least
@@ -136,6 +182,8 @@ function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
   // message instance (component is freshly mounted per message.id) — the
   // ref guard is only to dodge StrictMode's dev-mode double-invoke; the
   // dedup key already makes a genuine double-call harmless either way.
+  // Waits on imagesReady so the save carries each film's real resolved
+  // image rather than racing the search.
   //
   // Reopening a chat remounts this for every historical message too, so a
   // message whose items already saved successfully skips straight to
@@ -149,10 +197,11 @@ function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
       return
     }
     if (hasSavedRef.current) return
+    if (!imagesReady) return
     hasSavedRef.current = true
     saveMutation.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [imagesReady])
 
   // Reports the plain-text version up to Chat.tsx so its copy button copies
   // the recommendations, not this message's raw JSON (see
@@ -172,8 +221,8 @@ function FilmRecommendationsResponse({ content, toolSlug, chatId, messageId, rea
     // icons and reads as if they belong to that film specifically rather
     // than to the whole multi-film response.
     <div className="space-y-4 pb-2">
-      {data.films.map((film) => (
-        <FilmCard key={film.title} film={film} />
+      {data.films.map((film, index) => (
+        <FilmCard key={film.title} film={film} image={images?.[index] ?? undefined} />
       ))}
     </div>
   )

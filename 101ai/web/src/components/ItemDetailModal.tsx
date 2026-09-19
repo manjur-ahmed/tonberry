@@ -20,6 +20,26 @@ function ItemDetailModal({ item, onClose }: { item: Item; onClose: () => void })
   const navigate = useNavigate()
   const [step, setStep] = useState<Step>('closed')
   const ownTool = getTool(item.toolSlug)
+  // Only set for a tool whose ResponseView reports a human-readable plain-
+  // text form (see ResponseViewProps.onCopyTextChange) — null for one that
+  // doesn't, in which case sendToNotes below falls back to raw JSON.
+  const [copyText, setCopyText] = useState<string | null>(null)
+
+  // A hideChatsTab tool (currently just Writer/Notes) has no chat concept
+  // at all — createChatFromItem below would still technically succeed for
+  // it (nothing stops it), but the chat it creates would be unreachable
+  // through any of Writer's own UI and inconsistent with every other item
+  // there. Route it into a real note draft instead, pre-filled with this
+  // item's content, exactly like picking "Open in [tool] chat" does for an
+  // ordinary tool but landing on NoteEditor instead of Chat.
+  function sendToNotes(toolSlug: string) {
+    navigate(`/tools/${toolSlug}/notes/new`, {
+      state: {
+        initialTitle: item.title,
+        initialBody: copyText ?? JSON.stringify(item.data, null, 2),
+      },
+    })
+  }
 
   // Creates the chat (item card + canned opener, no OpenAI call — see
   // ChatsService.createChatFromItem) and jumps straight to it. Passing a
@@ -69,6 +89,7 @@ function ItemDetailModal({ item, onClose }: { item: Item; onClose: () => void })
               chatId={item.chatId ?? ''}
               messageId={item.id}
               readOnly
+              onCopyTextChange={setCopyText}
             />
           </div>
 
@@ -104,7 +125,7 @@ function ItemDetailModal({ item, onClose }: { item: Item; onClose: () => void })
         <ToolPickerSheet
           isPending={startChatMutation.isPending}
           isError={startChatMutation.isError}
-          onSelect={(tool) => startChatMutation.mutate(tool.slug)}
+          onSelect={(tool) => (tool.hideChatsTab ? sendToNotes(tool.slug) : startChatMutation.mutate(tool.slug))}
           onClose={close}
         />
       )}

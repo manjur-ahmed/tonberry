@@ -7,8 +7,8 @@ import { getUsageSummary, type UsageRange, type UsageSummary } from '../lib/api'
 
 const RANGES: UsageRange[] = ['7d', '30d', '90d']
 
-const PLAN_LABELS: Record<'free' | 'plus' | 'premium' | 'none', string> = {
-  free: 'Free',
+const PLAN_LABELS: Record<'basic' | 'plus' | 'premium' | 'none', string> = {
+  basic: 'Basic',
   plus: 'Plus',
   premium: 'Premium',
   none: 'No plan',
@@ -128,7 +128,7 @@ function AdminUsage() {
   return (
     <main className="flex flex-col gap-6 p-4 pb-24">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-slate-900">AI usage report</h1>
+        <h1 className="font-display text-2xl font-extrabold text-slate-900">AI usage report</h1>
         <div className="mt-3 inline-flex rounded-full border-2 border-slate-900 bg-white p-1">
           {RANGES.map((r) => (
             <button

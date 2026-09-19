@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { getToolConfig } from '../tools/tool-config';
@@ -14,9 +18,17 @@ import { UsageLogsService } from '../usage-logs/usage-logs.service';
 const MAX_COMPLETION_TOKENS = 2500;
 
 // Bounds how much prior conversation gets sent on a long chat — a simple
-// recency cutoff, not real pruning/summarization. Plenty for any chat this
-// app produces today.
-const MAX_HISTORY_MESSAGES = 20;
+// recency cutoff, not real pruning/summarization. Was 20 (10 exchanges) —
+// too tight in practice: a recommendation tool (Film/Book/Music) that's
+// told "never repeat something already recommended" can only honor that
+// for whatever's still inside this window, and 20 was easy to blow through
+// in an ordinary "give me more" back-and-forth, at which point the model
+// genuinely can no longer see its own earlier replies (confirmed root
+// cause of reported repeat-recommendation bug, 2026-09-16 — not a
+// model-compliance issue). 60 gives real headroom (gpt-4o-mini's context
+// window is nowhere close to being the actual constraint here) while still
+// capping unboundedly long chats.
+const MAX_HISTORY_MESSAGES = 60;
 
 // Cheap, fast model for the small auxiliary calls below (route-intent
 // extraction) — never needs the main chat model's capability, and running
@@ -144,6 +156,19 @@ const ROUTE_INTENT_SYSTEM_PROMPT =
   '"startLocationName": string|null, "destinationName": string|null, ' +
   '"startCategory": string|null, "nearestOnly": boolean}.';
 
+// Used by needsMathsUpgrade (see ToolConfig.mathModelOverride) — a cheap
+// pre-check so a tool like business-plan only pays for the stronger model
+// on turns that actually need it, not every turn.
+const MATHS_CHECK_SYSTEM_PROMPT =
+  'Decide whether answering the LATEST message requires doing real ' +
+  'numeric calculation where getting the arithmetic right actually ' +
+  'matters — e.g. pricing, unit economics, a budget, startup costs, or ' +
+  'any other figure that has to be computed correctly. General ideation, ' +
+  'market/competitor discussion, or a plan section with no numbers to ' +
+  'work out does NOT count, even if money or a word like "cost" or ' +
+  '"price" comes up without an actual calculation to do. Respond with ' +
+  'ONLY a JSON object: {"needsMaths": boolean}.';
+
 export interface HistoryMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -183,6 +208,7 @@ export interface GenerateReplyParams {
 @Injectable()
 export class OpenAiService {
   private readonly client: OpenAI;
+  private readonly logger = new Logger(OpenAiService.name);
 
   constructor(
     config: ConfigService,
@@ -223,8 +249,14 @@ export class OpenAiService {
           ]
         : params.message;
 
+      const model = config.mathModelOverride
+        ? (await this.needsMathsUpgrade(params))
+          ? config.mathModelOverride
+          : config.model
+        : config.model;
+
       const response = await this.client.chat.completions.create({
-        model: config.model,
+        model,
         messages: [
           { role: 'system', content: config.systemPrompt },
           ...params.history.slice(-MAX_HISTORY_MESSAGES).map((entry) => ({
@@ -251,16 +283,16 @@ export class OpenAiService {
 
       const usage = response.usage;
       if (usage) {
-        // config.model (what we requested), not response.model (the
-        // specific dated snapshot OpenAI actually served) — MODEL_PRICING
-        // is keyed by the request-time name, so this is what actually
-        // resolves to a price.
+        // model (what we actually requested — see the mathModelOverride
+        // check above), not response.model (the specific dated snapshot
+        // OpenAI actually served) — MODEL_PRICING is keyed by the
+        // request-time name, so this is what actually resolves to a price.
         await this.usageLogs.record({
           userId: params.userId,
           chatId: params.chatId,
           messageId: params.messageId,
           toolSlug: params.toolSlug,
-          model: config.model,
+          model,
           promptTokens: usage.prompt_tokens,
           completionTokens: usage.completion_tokens,
           totalTokens: usage.total_tokens,
@@ -271,10 +303,65 @@ export class OpenAiService {
       }
 
       return content;
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `generateReply failed for tool "${params.toolSlug}"`,
+        error instanceof Error ? error.stack : error,
+      );
       throw new InternalServerErrorException(
         'Could not generate a reply — try again.',
       );
+    }
+  }
+
+  // Cheap pre-check backing ToolConfig.mathModelOverride — runs on AUX_MODEL,
+  // same pattern as extractRouteIntent/the shopping-intent call below. Any
+  // failure (bad JSON, API error) defaults to false rather than blocking the
+  // real reply — worst case a maths-needing turn stays on the cheaper model
+  // for once, which is far better than the real call failing outright.
+  private async needsMathsUpgrade(
+    params: GenerateReplyParams,
+  ): Promise<boolean> {
+    try {
+      const response = await this.client.chat.completions.create({
+        model: AUX_MODEL,
+        messages: [
+          { role: 'system', content: MATHS_CHECK_SYSTEM_PROMPT },
+          ...params.history.slice(-MAX_HISTORY_MESSAGES).map((entry) => ({
+            role: entry.role,
+            content: entry.content,
+          })),
+          { role: 'user', content: params.message },
+        ],
+        max_completion_tokens: 20,
+        response_format: { type: 'json_object' },
+      });
+      const raw = response.choices[0]?.message?.content;
+      const usage = response.usage;
+      if (usage) {
+        await this.usageLogs.record({
+          userId: params.userId,
+          chatId: params.chatId,
+          messageId: params.messageId,
+          toolSlug: params.toolSlug,
+          model: AUX_MODEL,
+          promptTokens: usage.prompt_tokens,
+          completionTokens: usage.completion_tokens,
+          totalTokens: usage.total_tokens,
+          cachedTokens: usage.prompt_tokens_details?.cached_tokens ?? 0,
+          prompt: params.message,
+          response: raw ?? undefined,
+        });
+      }
+      if (!raw) return false;
+      const parsed = JSON.parse(raw) as { needsMaths?: boolean };
+      return parsed.needsMaths === true;
+    } catch (error) {
+      this.logger.error(
+        'needsMathsUpgrade failed, defaulting to false',
+        error instanceof Error ? error.stack : error,
+      );
+      return false;
     }
   }
 
@@ -367,7 +454,11 @@ export class OpenAiService {
             : null,
         nearestOnly: record.nearestOnly === true,
       };
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        'extractRouteIntent failed, falling back to a chat reply',
+        error instanceof Error ? error.stack : error,
+      );
       return fallback;
     }
   }
@@ -438,7 +529,11 @@ export class OpenAiService {
           typeof record.searchQuery === 'string' ? record.searchQuery : null,
         isRefinement: record.isRefinement === true,
       };
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        'extractShoppingIntent failed, falling back to a chat reply',
+        error instanceof Error ? error.stack : error,
+      );
       return fallback;
     }
   }

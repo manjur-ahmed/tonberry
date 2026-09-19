@@ -18,7 +18,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET', 'dev-only-change-me'),
+      // Non-null: see AppModule's ConfigModule.validate — this app never
+      // finishes booting with JWT_SECRET unset.
+      secretOrKey: config.get<string>('JWT_SECRET')!,
     });
   }
 

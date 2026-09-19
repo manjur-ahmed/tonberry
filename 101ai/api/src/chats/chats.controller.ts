@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ChatsService } from './chats.service';
 import { CreateChatDto } from './dto/create-chat.dto';
 import { AddMessageDto } from './dto/add-message.dto';
@@ -90,5 +90,15 @@ export class ChatsController {
   @Get('chats')
   getAllChats(@CurrentUser() user: User) {
     return this.chatsService.getAllChats(user.id);
+  }
+
+  @Delete('chats/:chatId')
+  deleteChat(@CurrentUser() user: User, @Param('chatId') chatId: string) {
+    return this.chatsService.deleteChat(user.id, chatId);
+  }
+
+  @Delete('chats')
+  deleteAllChats(@CurrentUser() user: User) {
+    return this.chatsService.deleteAllForUser(user.id);
   }
 }

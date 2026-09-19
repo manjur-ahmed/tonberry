@@ -11,7 +11,7 @@ export interface ToolCatalogEntry {
 export const TOOL_CATALOG: ToolCatalogEntry[] = [
   {
     slug: 'writer',
-    name: 'Writer',
+    name: 'Notes',
     description: 'Note taking or draft a piece of writing.',
   },
   {
@@ -23,6 +23,11 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
     slug: 'word-helper',
     name: 'Word Helper',
     description: 'Find the right word or check its meaning.',
+  },
+  {
+    slug: 'document-explainer',
+    name: 'Document Explainer',
+    description: 'Understand a document — attach one and ask about it.',
   },
   {
     slug: 'science-explainer',
@@ -41,8 +46,13 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
   },
   {
     slug: 'book-recommendations',
-    name: 'Book Recommendations',
-    description: 'Get book picks based on your taste.',
+    name: 'Read Recommendations',
+    description: 'Get book, manga, and comic picks based on your taste.',
+  },
+  {
+    slug: 'show-recommendations',
+    name: 'Show Recommendations',
+    description: 'Get TV show picks based on your taste.',
   },
   {
     slug: 'music-recommendations',
@@ -96,7 +106,7 @@ export const TOOL_CATALOG: ToolCatalogEntry[] = [
   },
   {
     slug: 'clothing',
-    name: 'Clothing',
+    name: 'Clothes',
     description: 'Get outfit and clothing suggestions.',
   },
   {

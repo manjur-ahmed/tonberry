@@ -137,7 +137,7 @@ function AdminDebug() {
   return (
     <main className="flex flex-col gap-6 p-4 pb-24">
       <div>
-        <h1 className="font-display text-2xl font-semibold text-slate-900">Observability test triggers</h1>
+        <h1 className="font-display text-2xl font-extrabold text-slate-900">Observability test triggers</h1>
         <p className="mt-1 text-sm text-slate-600">
           Deliberately causes real errors so we can confirm CloudWatch, Grafana, and Faro actually pick them up.
           Every trigger is clearly labelled &ldquo;[TEST]&rdquo; wherever it shows up — safe to click.

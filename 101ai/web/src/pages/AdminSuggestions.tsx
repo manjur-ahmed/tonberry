@@ -38,7 +38,7 @@ function AdminSuggestions() {
 
   return (
     <main className="flex flex-col gap-4 p-4 pb-24">
-      <h1 className="font-display text-2xl font-semibold text-slate-900">Tool suggestions</h1>
+      <h1 className="font-display text-2xl font-extrabold text-slate-900">Tool suggestions</h1>
 
       {isForbidden && <p className="text-slate-600">Not authorized — this page is restricted.</p>}
       {!isForbidden && error && <p className="text-red-600">Something went wrong: {(error as Error).message}</p>}

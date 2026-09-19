@@ -37,6 +37,54 @@ export function setCachedGpsLocation(location: CachedGpsLocation): void {
   }
 }
 
+// Resolves a real town/city name for a GPS coordinate — used by the new-
+// chat compose sheet (ToolDashboard.tsx) to show "Near Birmingham — not
+// you?" as a one-time checkpoint before the first location-dependent
+// message goes out, in case the cached location is stale (the cache has a
+// TTL, but only expires lazily on next read — this is the deliberate
+// "did I actually move" check within that window). Deliberately not shown
+// once a chat is already running (Chat.tsx) — that's the same clutter this
+// was removed from before, reintroduced only where it earns its place. Same
+// browser key already used for the interactive map (RouteMap.tsx loads the
+// Maps JS SDK client-side with it) — no separate server round-trip needed,
+// this is real data the browser already legitimately has (its own GPS
+// reading), not something a model could hallucinate, so there's no
+// "resolve it server-side" concern the way there is for e.g. a YouTube
+// video id. Returns null on any failure — callers fall back to showing
+// nothing rather than a broken checkpoint.
+const PLACE_NAME_COMPONENT_PRIORITY = [
+  'locality',
+  'postal_town',
+  'administrative_area_level_2',
+  'administrative_area_level_1',
+]
+
+export async function reverseGeocodeToPlaceName(lat: number, lng: number): Promise<string | null> {
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_BROWSER_API_KEY
+  if (!apiKey) return null
+  try {
+    const url = new URL('https://maps.googleapis.com/maps/api/geocode/json')
+    url.searchParams.set('latlng', `${lat},${lng}`)
+    url.searchParams.set('key', apiKey)
+    const response = await fetch(url.toString())
+    if (!response.ok) return null
+    const body = (await response.json()) as {
+      status?: string
+      results?: { address_components?: { long_name?: string; types?: string[] }[] }[]
+    }
+    if (body.status !== 'OK') return null
+    for (const result of body.results ?? []) {
+      for (const type of PLACE_NAME_COMPONENT_PRIORITY) {
+        const component = result.address_components?.find((c) => c.types?.includes(type))
+        if (component?.long_name) return component.long_name
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 // Whether the browser will actually re-prompt the user if we call
 // getCurrentPosition right now. Chrome/Firefox/Edge support querying this;
 // Safari doesn't (query throws or the call is missing entirely) — callers

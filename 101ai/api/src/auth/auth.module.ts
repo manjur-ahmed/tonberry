@@ -14,7 +14,9 @@ import { UsersModule } from '../users/users.module';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET', 'dev-only-change-me'),
+        // Non-null: AppModule's ConfigModule.validate refuses to start the
+        // app at all if this is unset — no insecure fallback needed here.
+        secret: config.get<string>('JWT_SECRET')!,
         signOptions: { expiresIn: '7d' },
       }),
     }),

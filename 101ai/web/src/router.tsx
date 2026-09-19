@@ -11,9 +11,14 @@ import Pricing from './pages/Pricing'
 import Settings from './pages/Settings'
 import ChangePassword from './pages/ChangePassword'
 import Recent from './pages/Recent'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 import Country from './pages/Country'
+import Location from './pages/Location'
+import Theme from './pages/Theme'
 import AuthCallback from './pages/AuthCallback'
 import AdminUsage from './pages/AdminUsage'
+import AdminCosts from './pages/AdminCosts'
 import RecommendTool from './pages/RecommendTool'
 import AdminSuggestions from './pages/AdminSuggestions'
 import AdminDebug from './pages/AdminDebug'
@@ -45,12 +50,17 @@ export const router = withFaroRouterInstrumentation(createBrowserRouter([
           { path: '/sign-in', element: <SignIn /> },
           { path: '/pricing', element: <Pricing /> },
           { path: '/country', element: <Country /> },
+          { path: '/location', element: <Location /> },
+          { path: '/theme', element: <Theme /> },
           { path: '/settings', element: <Settings /> },
           { path: '/settings/password', element: <ChangePassword /> },
           { path: '/settings/recommend-tool', element: <RecommendTool /> },
           { path: '/recent', element: <Recent /> },
+          { path: '/terms', element: <Terms /> },
+          { path: '/privacy', element: <Privacy /> },
           { path: '/auth/callback', element: <AuthCallback /> },
           { path: '/admin/usage', element: <AdminUsage /> },
+          { path: '/admin/costs', element: <AdminCosts /> },
           { path: '/admin/suggestions', element: <AdminSuggestions /> },
           { path: '/admin/debug', element: <AdminDebug /> },
           // Catch-all — any URL that matches nothing above lands here

@@ -19,10 +19,13 @@ import {
   UserX,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { setPlan } from '../lib/api'
+import { deleteAccount, setPlan } from '../lib/api'
+import { deleteAllChats } from '../lib/chats'
+import { deleteAllItems } from '../lib/items'
 import { getPlan, plans } from '../lib/plans'
 import Switch from '../components/Switch'
 import ConfirmDialog from '../components/ConfirmDialog'
+import LegalLinksFooter from '../components/LegalLinksFooter'
 
 type DialogKey = 'reset-chats' | 'remove-items' | 'unsubscribe' | 'delete-account'
 
@@ -39,7 +42,7 @@ const dialogContent: Record<DialogKey, { title: string; description: string; con
   },
   unsubscribe: {
     title: 'Unsubscribe?',
-    description: "You'll move to the Free plan at the end of your current billing period.",
+    description: "You'll move to the Basic plan at the end of your current billing period.",
     confirmLabel: 'Unsubscribe',
   },
   'delete-account': {
@@ -55,7 +58,6 @@ function Settings() {
   const queryClient = useQueryClient()
 
   const [memoryEnabled, setMemoryEnabled] = useState(false)
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark')
   const [activeDialog, setActiveDialog] = useState<DialogKey | null>(null)
 
   useEffect(() => {
@@ -71,10 +73,39 @@ function Settings() {
   })
 
   const unsubscribeMutation = useMutation({
-    mutationFn: () => setPlan('free'),
+    mutationFn: () => setPlan('basic'),
     onSuccess: (updatedUser) => {
       queryClient.setQueryData(['me'], updatedUser)
       setActiveDialog(null)
+    },
+  })
+
+  const resetChatsMutation = useMutation({
+    mutationFn: deleteAllChats,
+    // ['chats'] matches as a prefix — covers every per-tool/cross-tool
+    // chats query, same reasoning as every other chat-mutating invalidation
+    // in this codebase.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['chats'] })
+      setActiveDialog(null)
+    },
+  })
+
+  const removeItemsMutation = useMutation({
+    mutationFn: deleteAllItems,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['items'] })
+      setActiveDialog(null)
+    },
+  })
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: deleteAccount,
+    // No setActiveDialog(null) — the account (and its token) is gone,
+    // there's nothing left to show a closed dialog over.
+    onSuccess: () => {
+      signOut()
+      navigate('/', { replace: true })
     },
   })
 
@@ -84,18 +115,11 @@ function Settings() {
   }
 
   function handleMemoryToggle() {
-    if (currentPlan.id === 'free') {
+    if (currentPlan.id === 'basic') {
       navigate('/pricing?reason=memory')
       return
     }
     setMemoryEnabled((value) => !value)
-  }
-
-  function handleThemeToggle() {
-    const next = !isDark
-    setIsDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
   }
 
   function handleConfirm() {
@@ -104,12 +128,16 @@ function Settings() {
       return
     }
     if (activeDialog === 'delete-account') {
-      signOut()
-      navigate('/', { replace: true })
+      deleteAccountMutation.mutate()
       return
     }
-    // No chats/items data model exists yet — nothing to actually clear.
-    setActiveDialog(null)
+    if (activeDialog === 'reset-chats') {
+      resetChatsMutation.mutate()
+      return
+    }
+    if (activeDialog === 'remove-items') {
+      removeItemsMutation.mutate()
+    }
   }
 
   if (!user) return null
@@ -125,7 +153,7 @@ function Settings() {
       <div className="mx-auto mt-4 flex h-24 w-24 items-center justify-center rounded-full bg-violet-100 text-3xl font-semibold text-violet-700">
         {initial}
       </div>
-      <h1 className="mt-4 text-center font-display text-2xl font-semibold text-slate-900">
+      <h1 className="mt-4 text-center font-display text-2xl font-extrabold text-slate-900">
         {user.name ?? user.email}
       </h1>
 
@@ -149,17 +177,15 @@ function Settings() {
         <ul className="mt-4 space-y-1.5 text-sm text-slate-600">
           {currentPlan.features.map((feature) => (
             <li key={feature} className="flex items-start gap-2">
-              <span className={`mt-0.5 ${currentPlan.id === 'free' ? 'text-slate-400' : 'text-emerald-500'}`}>
-                ✓
-              </span>
+              <span className="mt-0.5 text-emerald-500">✓</span>
               {feature}
             </li>
           ))}
         </ul>
 
-        {currentPlan.id !== 'free' && (
-          <p className="mt-3 text-xs text-slate-400">Next bill: {nextBillDate}</p>
-        )}
+        {/* Every plan is paid now (no more $0 Free tier), so this always
+            shows — no per-plan condition needed. */}
+        <p className="mt-3 text-xs text-slate-400">Next bill: {nextBillDate}</p>
       </div>
 
       <h2 className="mt-8 text-xs font-semibold uppercase tracking-wide text-slate-500">Settings</h2>
@@ -170,15 +196,15 @@ function Settings() {
           <Switch checked={memoryEnabled} onChange={handleMemoryToggle} />
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-3.5">
-          {isDark ? (
+        <Link to="/theme" className="flex items-center gap-3 px-4 py-3.5">
+          {user.darkTheme ? (
             <Moon className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
           ) : (
             <Sun className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
           )}
-          <span className="flex-1 text-sm font-medium text-slate-900">Dark theme</span>
-          <Switch checked={isDark} onChange={handleThemeToggle} />
-        </div>
+          <span className="flex-1 text-sm font-medium text-slate-900">Theme</span>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+        </Link>
 
         <Link to="/settings/password" className="flex items-center gap-3 px-4 py-3.5">
           <Lock className="h-5 w-5 text-slate-500" strokeWidth={1.75} />
@@ -232,7 +258,7 @@ function Settings() {
 
         <button
           type="button"
-          disabled={currentPlan.id === 'free'}
+          disabled={currentPlan.id === 'basic'}
           onClick={() => setActiveDialog('unsubscribe')}
           className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-red-600 disabled:opacity-40"
         >
@@ -250,6 +276,8 @@ function Settings() {
         </button>
       </div>
 
+      <LegalLinksFooter />
+
       {activeDialog && (
         <ConfirmDialog
           open
@@ -258,6 +286,7 @@ function Settings() {
           confirmLabel={dialogContent[activeDialog].confirmLabel}
           onConfirm={handleConfirm}
           onCancel={() => setActiveDialog(null)}
+          waitSeconds={5}
         />
       )}
     </main>

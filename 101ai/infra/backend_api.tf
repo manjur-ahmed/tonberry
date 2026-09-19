@@ -24,6 +24,22 @@ resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# node_modules split out of the function's own deployment package and into
+# a layer Lambda caches independently — the function zip is now just dist/
+# (see deploy-101ai-api.yml), which is the real fix for cold starts here:
+# an audit found the function isn't VPC-attached (so networking isn't the
+# cause), and the actual contributors were the 25MB monolithic package and
+# no provisioned concurrency. This addresses the package-size half:
+# provisioned concurrency deliberately NOT added — it has an ongoing
+# per-GB-second cost even when idle, a separate decision from just shrinking
+# the package.
+resource "aws_lambda_layer_version" "dependencies" {
+  layer_name          = "tonberry-101ai-api-dependencies-${var.environment}"
+  filename            = "${path.module}/layer.zip"
+  source_code_hash    = filebase64sha256("${path.module}/layer.zip")
+  compatible_runtimes = ["nodejs22.x"]
+}
+
 resource "aws_lambda_function" "api" {
   function_name    = "tonberry-101ai-api-${var.environment}"
   filename         = "${path.module}/lambda.zip"
@@ -33,6 +49,18 @@ resource "aws_lambda_function" "api" {
   role             = aws_iam_role.lambda_exec.arn
   timeout          = 15
   memory_size      = 512
+  layers           = [aws_lambda_layer_version.dependencies.arn]
+
+  # Real code deploys happen via deploy-101ai-api.yml's
+  # `aws lambda update-function-code` CLI call, not `terraform apply` — this
+  # resource's filename/source_code_hash only matter for the very first
+  # apply that creates the function. Without ignoring them, a later
+  # `terraform apply` run with a stale or placeholder 101ai/infra/lambda.zip
+  # sitting around would silently roll the LIVE function's code back to
+  # whatever that file contains, fighting the CLI-deployed reality.
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
 
   environment {
     variables = {
@@ -41,6 +69,7 @@ resource "aws_lambda_function" "api" {
       GOOGLE_OAUTH_CLIENT_ID     = var.google_oauth_client_id
       GOOGLE_OAUTH_CLIENT_SECRET = var.google_oauth_client_secret
       OPENAI_API_KEY             = var.openai_api_key
+      GOOGLE_API_KEY             = var.google_api_key
       YOUTUBE_API_KEY            = var.youtube_api_key
       ADMIN_EMAIL                = var.admin_email
       FRONTEND_URL               = "https://101ai.tonberry.co.uk"

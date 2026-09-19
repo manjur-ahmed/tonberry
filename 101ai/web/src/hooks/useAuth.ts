@@ -1,5 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { clearToken, fetchMe, getToken } from '../lib/api'
+import { clearSavedTools } from '../lib/savedTools'
+import { clearSavedMessageItems } from '../lib/savedMessageItems'
 
 export function useAuth() {
   const queryClient = useQueryClient()
@@ -17,6 +19,12 @@ export function useAuth() {
     // gate on their `enabled` option, so they'd otherwise keep serving the
     // previous user's cached data (as stale-but-shown) after logout.
     queryClient.clear()
+    // These two live in localStorage, not react-query's cache, so
+    // queryClient.clear() above doesn't touch them — without this, the next
+    // person signing in on the same browser would inherit the previous
+    // user's starred tools and saved-item markers.
+    clearSavedTools()
+    clearSavedMessageItems()
   }
 
   return {

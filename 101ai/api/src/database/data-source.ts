@@ -5,6 +5,8 @@ import { Chat } from '../chats/chat.entity';
 import { Message } from '../chats/message.entity';
 import { Item } from '../items/item.entity';
 import { Suggestion } from '../suggestions/suggestion.entity';
+import { UsageLog } from '../usage-logs/usage-log.entity';
+import { RecurringCost } from '../recurring-costs/recurring-cost.entity';
 
 // DATABASE_URL (Neon, etc.) takes priority over discrete host/port/user/pass
 // — the latter is only for local Docker Compose Postgres.
@@ -12,7 +14,9 @@ const connectionOptions: DataSourceOptions = process.env.DATABASE_URL
   ? {
       type: 'postgres',
       url: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      // See AppModule's identical ssl option for why this is safe to
+      // verify strictly rather than skip.
+      ssl: { rejectUnauthorized: true },
     }
   : {
       type: 'postgres',
@@ -25,6 +29,6 @@ const connectionOptions: DataSourceOptions = process.env.DATABASE_URL
 
 export default new DataSource({
   ...connectionOptions,
-  entities: [User, Chat, Message, Item, Suggestion],
+  entities: [User, Chat, Message, Item, Suggestion, UsageLog, RecurringCost],
   migrations: ['src/database/migrations/*.ts'],
 });

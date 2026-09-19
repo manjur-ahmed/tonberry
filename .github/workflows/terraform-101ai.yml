@@ -1,0 +1,67 @@
+name: Terraform 101ai infra
+
+on:
+  pull_request:
+    paths:
+      - "101ai/infra/**"
+      - ".github/workflows/terraform-101ai.yml"
+  push:
+    branches: [main]
+    paths:
+      - "101ai/infra/**"
+      - ".github/workflows/terraform-101ai.yml"
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # required for OIDC — no stored AWS keys
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 101ai/infra
+    # Sensitive tfvars (see variables.tf) are passed as TF_VAR_* env vars,
+    # never written to a tfvars file on disk — terraform.tfvars itself is
+    # gitignored/local-only and never reaches this runner. Reuses the same
+    # AI101_DATABASE_URL secret the api deploy workflow already uses, so
+    # there's one source of truth for that value, not two.
+    env:
+      TF_VAR_aws_region: ${{ vars.AI101_AWS_REGION }}
+      TF_VAR_database_url: ${{ secrets.AI101_DATABASE_URL }}
+      TF_VAR_jwt_secret: ${{ secrets.AI101_TF_JWT_SECRET }}
+      TF_VAR_google_oauth_client_id: ${{ vars.AI101_TF_GOOGLE_OAUTH_CLIENT_ID }}
+      TF_VAR_google_oauth_client_secret: ${{ secrets.AI101_TF_GOOGLE_OAUTH_CLIENT_SECRET }}
+      TF_VAR_openai_api_key: ${{ secrets.AI101_TF_OPENAI_API_KEY }}
+      TF_VAR_admin_email: ${{ vars.AI101_TF_ADMIN_EMAIL }}
+      TF_VAR_google_api_key: ${{ secrets.AI101_TF_GOOGLE_API_KEY }}
+      TF_VAR_youtube_api_key: ${{ secrets.AI101_TF_YOUTUBE_API_KEY }}
+      TF_VAR_alert_email: ${{ vars.AI101_TF_ALERT_EMAIL }}
+      TF_VAR_grafana_aws_account_id: ${{ vars.AI101_TF_GRAFANA_AWS_ACCOUNT_ID }}
+      TF_VAR_grafana_external_id: ${{ secrets.AI101_TF_GRAFANA_EXTERNAL_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AI101_GITHUB_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AI101_AWS_REGION }}
+
+      - run: terraform init
+      - run: terraform validate
+      - run: terraform plan -out=tfplan
+
+      # Only on a real push to main — a PR only ever gets the plan above,
+      # never applies it. Applying the plan file from this SAME job/runner
+      # (rather than uploading it as an artifact for a separate apply job)
+      # avoids ever persisting the plan on disk anywhere a repo collaborator
+      # could download and read the real secret values Terraform resolved
+      # into it.
+      - name: Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan

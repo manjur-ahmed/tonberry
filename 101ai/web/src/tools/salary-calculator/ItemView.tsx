@@ -1,3 +1,5 @@
+import { Pin } from 'lucide-react'
+
 interface SalaryCalculationItemData {
   planTitle: string
   columns: string[]
@@ -13,10 +15,15 @@ function isSalaryCalculationItemData(value: unknown): value is SalaryCalculation
 // Column headers as a joined preview line ("Gross Salary • Income Tax •
 // National Insurance • Take-Home Pay") give a quick sense of the breakdown
 // without trying to cram the whole table into a small tile.
-function SalaryCalculatorItemView({ title, data }: { title: string; data: unknown }) {
+function SalaryCalculatorItemView({ title, data, pinned }: { title: string; data: unknown; pinned?: boolean }) {
   if (!isSalaryCalculationItemData(data)) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
+        {pinned && (
+          <div className="mb-1 text-slate-400">
+            <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+          </div>
+        )}
         <p className="text-sm font-semibold text-slate-900">{title}</p>
       </div>
     )
@@ -24,6 +31,11 @@ function SalaryCalculatorItemView({ title, data }: { title: string; data: unknow
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      {pinned && (
+        <div className="mb-1 text-slate-400">
+          <Pin className="h-3.5 w-3.5" strokeWidth={1.75} />
+        </div>
+      )}
       <h3 className="font-display text-xl font-bold text-slate-900">{data.planTitle}</h3>
       <p className="mt-0.5 text-xs uppercase tracking-wide text-slate-400">
         {data.rows.length} {data.rows.length === 1 ? 'row' : 'rows'}
