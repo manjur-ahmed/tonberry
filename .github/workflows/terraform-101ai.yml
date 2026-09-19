@@ -45,7 +45,12 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "~> 1.9"
+          # backend.tf's use_lockfile (S3-native locking, no DynamoDB) needs
+          # 1.10+ — matches the version actually used to apply this infra
+          # locally (`terraform version`), not the older ~1.9 pin this
+          # workflow shipped with, which failed at `terraform init` with
+          # "Unsupported argument" on the very first real run (2026-09-19).
+          terraform_version: "~> 1.16"
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

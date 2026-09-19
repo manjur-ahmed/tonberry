@@ -66,6 +66,77 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
         Action   = ["lambda:UpdateFunctionCode", "lambda:GetFunction"]
         Resource = aws_lambda_function.api.arn
       },
+      # Everything below lets `terraform apply` actually manage this infra
+      # from CI (terraform-101ai.yml), not just deploy already-built app
+      # artifacts like the three statements above. Deliberately EXCLUDES
+      # iam:*/sts:* and this role/policy/the OIDC provider itself — a role
+      # that can modify its own (or any) IAM policy is a privilege-
+      # escalation risk, so any future change to aws_iam_role/
+      # aws_iam_role_policy/aws_iam_openid_connect_provider still requires
+      # a human running `terraform apply` locally with real admin
+      # credentials, same as this policy's own first rollout (2026-09-19).
+      # Wildcarded per-service rather than hand-enumerating every action —
+      # several of these services (API Gateway v2, ACM, Route53, CloudWatch
+      # alarms/logs) don't support meaningful resource-level IAM scoping
+      # anyway, and a missing narrow action just fails the next apply
+      # loudly rather than doing anything destructive.
+      {
+        Sid    = "ManageS3Buckets"
+        Effect = "Allow"
+        Action = "s3:*"
+        Resource = [
+          aws_s3_bucket.web.arn,
+          "${aws_s3_bucket.web.arn}/*",
+          aws_s3_bucket.uploads.arn,
+          "${aws_s3_bucket.uploads.arn}/*",
+        ]
+      },
+      {
+        Sid      = "ManageCloudFront"
+        Effect   = "Allow"
+        Action   = "cloudfront:*"
+        Resource = "*"
+      },
+      {
+        Sid      = "ManageAcmCertificates"
+        Effect   = "Allow"
+        Action   = "acm:*"
+        Resource = "*"
+      },
+      {
+        Sid      = "ManageRoute53"
+        Effect   = "Allow"
+        Action   = "route53:*"
+        Resource = "*"
+      },
+      {
+        Sid      = "ManageApiGateway"
+        Effect   = "Allow"
+        Action   = "apigateway:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageLambdaConfigAndLayers"
+        Effect = "Allow"
+        Action = "lambda:*"
+        Resource = [
+          aws_lambda_function.api.arn,
+          "${aws_lambda_function.api.arn}:*",
+          "${aws_lambda_layer_version.dependencies.layer_arn}*",
+        ]
+      },
+      {
+        Sid      = "ManageCloudWatchLogsAndAlarms"
+        Effect   = "Allow"
+        Action   = ["logs:*", "cloudwatch:*"]
+        Resource = "*"
+      },
+      {
+        Sid      = "ManageSns"
+        Effect   = "Allow"
+        Action   = "sns:*"
+        Resource = aws_sns_topic.alerts.arn
+      },
     ]
   })
 }
