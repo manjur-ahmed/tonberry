@@ -43,8 +43,8 @@ jobs:
       # being bundled into the function's own zip — the function package
       # below is just dist/, which is the real fix for cold starts (a 25MB
       # monolithic zip was one of the two contributors an audit found; the
-      # other, provisioned concurrency, is a deliberate follow-up given its
-      # ongoing per-GB-second cost).
+      # other, provisioned concurrency, is now covered by the "live" alias
+      # this workflow moves forward below).
       #
       # ORDERING NOTE: the layer itself is Terraform-managed, not deployed
       # by this workflow. `terraform apply` must attach a layer built from
@@ -84,3 +84,23 @@ jobs:
           aws lambda update-function-code \
             --function-name ${{ vars.AI101_LAMBDA_FUNCTION_NAME }} \
             --zip-file fileb://lambda.zip
+
+      # Provisioned concurrency (aws_lambda_provisioned_concurrency_config.api
+      # in backend_api.tf) targets the "live" alias, not $LATEST — moving the
+      # alias here is what makes this deploy's new code actually take over
+      # the pre-warmed instance. Lambda keeps the alias's PREVIOUS version
+      # warm until the new version's provisioned instances are ready, so this
+      # doesn't reintroduce a cold-start gap on every deploy. Waiting for the
+      # code update to finish processing before publishing a version from it
+      # avoids publishing a half-updated state.
+      - name: Publish version and move the "live" alias
+        run: |
+          aws lambda wait function-updated \
+            --function-name ${{ vars.AI101_LAMBDA_FUNCTION_NAME }}
+          VERSION=$(aws lambda publish-version \
+            --function-name ${{ vars.AI101_LAMBDA_FUNCTION_NAME }} \
+            --query Version --output text)
+          aws lambda update-alias \
+            --function-name ${{ vars.AI101_LAMBDA_FUNCTION_NAME }} \
+            --name live \
+            --function-version "$VERSION"
