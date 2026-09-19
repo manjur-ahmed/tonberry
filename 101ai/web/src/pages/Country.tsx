@@ -3,7 +3,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { setPreferences } from '../lib/api'
 import { countries } from '../lib/countries'
-import Switch from '../components/Switch'
+
+// 16 years ago, as a native `max` on the date input — a soft nudge toward
+// the 16+ minimum age already stated in /terms and /privacy, not a hard
+// block (nothing stops someone entering a false date, same as any other
+// self-reported age gate).
+const SIXTEEN_YEARS_AGO = new Date(Date.now() - 16 * 365.25 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10)
 
 function Country() {
   const navigate = useNavigate()
@@ -11,22 +18,15 @@ function Country() {
 
   const [name, setName] = useState('')
   const [country, setCountryCode] = useState('')
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('theme') === 'dark')
+  const [dateOfBirth, setDateOfBirth] = useState('')
 
   const mutation = useMutation({
     mutationFn: setPreferences,
     onSuccess: (user) => {
       queryClient.setQueryData(['me'], user)
-      navigate('/pricing', { replace: true })
+      navigate('/location', { replace: true })
     },
   })
-
-  function handleThemeToggle() {
-    const next = !isDark
-    setIsDark(next)
-    document.documentElement.classList.toggle('dark', next)
-    localStorage.setItem('theme', next ? 'dark' : 'light')
-  }
 
   function handleContinue() {
     const trimmed = name.trim()
@@ -37,7 +37,7 @@ function Country() {
       name: firstName,
       otherNames: rest.length > 0 ? rest.join(' ') : undefined,
       country,
-      darkTheme: isDark,
+      dateOfBirth: dateOfBirth || undefined,
     })
   }
 
@@ -48,7 +48,7 @@ function Country() {
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-violet-300/40 blur-2xl" />
       <div className="pointer-events-none absolute -left-16 top-20 h-32 w-32 rounded-full bg-indigo-200/50 blur-2xl" />
 
-      <h1 className="relative font-display text-3xl font-semibold leading-tight text-slate-900">
+      <h1 className="relative font-display text-3xl font-extrabold leading-tight text-slate-900">
         Set your preferences
       </h1>
       <p className="relative mt-2 text-slate-600">A few details to get things set up.</p>
@@ -85,10 +85,16 @@ function Country() {
           </select>
         </label>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/70 px-5 py-3 shadow-md shadow-slate-300/40">
-          <span className="flex-1 text-sm font-semibold text-slate-900">Dark theme</span>
-          <Switch checked={isDark} onChange={handleThemeToggle} />
-        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-semibold text-slate-900">Date of birth</span>
+          <input
+            type="date"
+            value={dateOfBirth}
+            onChange={(event) => setDateOfBirth(event.target.value)}
+            max={SIXTEEN_YEARS_AGO}
+            className="rounded-full border border-slate-200 bg-white/80 px-5 py-3 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300"
+          />
+        </label>
 
         <button
           type="button"

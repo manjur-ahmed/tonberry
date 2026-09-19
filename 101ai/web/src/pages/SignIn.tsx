@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { API_URL, fetchMe, login, register, setToken } from '../lib/api'
 import LegalLinksFooter from '../components/LegalLinksFooter'
@@ -21,7 +21,10 @@ function SignIn() {
   async function redirectAfterAuth(token: string) {
     setToken(token)
     const user = await fetchMe()
-    navigate(user?.plan && user?.country && user?.name ? '/' : '/pricing', { replace: true })
+    navigate(
+      (user?.plan || user?.trialStartedAt) && user?.country && user?.name ? '/' : '/pricing',
+      { replace: true },
+    )
   }
 
   const loginMutation = useMutation({
@@ -58,7 +61,7 @@ function SignIn() {
         ←
       </button>
 
-      <h1 className="relative mt-6 font-display text-3xl font-semibold leading-tight text-slate-900">
+      <h1 className="relative mt-6 font-display text-3xl font-extrabold leading-tight text-slate-900">
         {isSignup ? 'Create your account' : 'Welcome back'}
       </h1>
       <p className="relative mt-2 text-slate-600">
@@ -148,6 +151,16 @@ function SignIn() {
           </>
         )}
       </form>
+
+      {/* Only on the sign-in view — isSignup mode is already the "create an
+          account" flow, so this link would just point at itself there. */}
+      {!isSignup && (
+        <p className="relative mt-6 text-center text-sm text-slate-600">
+          <Link to="/sign-in?mode=signup" className="underline">
+            Create an account
+          </Link>
+        </p>
+      )}
 
       {isSignup && <LegalLinksFooter />}
     </main>

@@ -18,17 +18,27 @@ export class UsersController {
     return toPublicUser(await this.usersService.setPlan(user.id, dto.plan));
   }
 
+  @Patch('trial')
+  @UseGuards(JwtAuthGuard)
+  async startTrial(@CurrentUser() user: User) {
+    return toPublicUser(await this.usersService.startTrial(user.id));
+  }
+
   @Patch('preferences')
   @UseGuards(JwtAuthGuard)
   async setPreferences(
     @CurrentUser() user: User,
     @Body() dto: SetPreferencesDto,
   ) {
+    // Only include a key when the caller actually sent it — see
+    // SetPreferencesDto/UsersService.setPreferences' comments for why (each
+    // onboarding step now PATCHes just what it collects).
     const updated = await this.usersService.setPreferences(user.id, {
-      name: dto.name,
-      otherNames: dto.otherNames ?? null,
-      country: dto.country.toUpperCase(),
-      darkTheme: dto.darkTheme,
+      ...(dto.name !== undefined ? { name: dto.name } : {}),
+      ...(dto.otherNames !== undefined ? { otherNames: dto.otherNames } : {}),
+      ...(dto.country !== undefined ? { country: dto.country.toUpperCase() } : {}),
+      ...(dto.darkTheme !== undefined ? { darkTheme: dto.darkTheme } : {}),
+      ...(dto.dateOfBirth !== undefined ? { dateOfBirth: dto.dateOfBirth } : {}),
     });
     return toPublicUser(updated);
   }

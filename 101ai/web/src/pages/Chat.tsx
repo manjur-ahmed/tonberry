@@ -634,7 +634,7 @@ function Chat() {
             >
               ←
             </button>
-            <h1 className="font-display text-xl font-semibold text-slate-900">{tool.name}</h1>
+            <h1 className="font-display text-xl font-extrabold text-slate-900">{tool.name}</h1>
           </div>
           {!isNewChat && (
             <OptionsMenu
@@ -920,7 +920,7 @@ function Chat() {
                   handleSend()
                 }}
                 aria-label="Send"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40"
               >
                 <ArrowUp className="h-4 w-4" strokeWidth={2} />
               </button>

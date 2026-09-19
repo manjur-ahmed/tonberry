@@ -6,7 +6,7 @@ import {
 } from 'typeorm';
 
 export enum UserPlan {
-  FREE = 'free',
+  BASIC = 'basic',
   PLUS = 'plus',
   PREMIUM = 'premium',
 }
@@ -34,9 +34,21 @@ export class User {
   googleId: string | null;
 
   // Null until the user picks a plan on /pricing — that's the gate that
-  // sends a signed-in user with no plan to the pricing page before any tool.
+  // sends a signed-in user with neither a plan nor an active trial (see
+  // trialStartedAt) to the pricing page before any tool.
   @Column({ type: 'enum', enum: UserPlan, nullable: true })
   plan: UserPlan | null;
+
+  // Set once, the first time the user taps "Continue with free trial" on
+  // /pricing (see UsersService.startTrial) — an alternative to picking a
+  // real plan there, not a plan itself: `plan` stays null throughout, so
+  // every existing `getPlan(user.plan) ?? plans[0]` fallback already
+  // treats a trialing user as Basic-tier for display purposes with no
+  // extra logic needed. 14 days is currently just the number shown next to
+  // the trial button — nothing reads this column to actually expire or
+  // block access once it's passed (deliberately not built yet).
+  @Column({ name: 'trial_started_at', type: 'timestamp', nullable: true })
+  trialStartedAt: Date | null;
 
   // ISO 3166-1 alpha-2 code. Null until set on /country (now the preferences
   // page) — that's the gate that sends a signed-in user with no country
@@ -46,6 +58,12 @@ export class User {
 
   @Column({ name: 'dark_theme', type: 'boolean', default: false })
   darkTheme: boolean;
+
+  // Collected on /country alongside name/country — 'date' (not timestamp),
+  // stored as a plain YYYY-MM-DD string since a birth date has no
+  // meaningful time-of-day or timezone component.
+  @Column({ name: 'date_of_birth', type: 'date', nullable: true })
+  dateOfBirth: string | null;
 
   // Null for an account that's only ever signed in via Google — set on
   // /settings/password, which is what lets that same account also sign in

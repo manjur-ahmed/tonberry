@@ -12,7 +12,7 @@ function NotFound() {
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-violet-100 text-violet-700">
         <Compass className="h-8 w-8" strokeWidth={1.75} />
       </div>
-      <h1 className="mt-5 font-display text-2xl font-semibold text-slate-900">Page not found</h1>
+      <h1 className="mt-5 font-display text-2xl font-extrabold text-slate-900">Page not found</h1>
       <p className="mt-2 max-w-xs text-sm text-slate-600">
         The page you're looking for doesn't exist or may have moved.
       </p>

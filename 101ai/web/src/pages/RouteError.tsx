@@ -24,7 +24,7 @@ function RouteError() {
       <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
         <TriangleAlert className="h-8 w-8" strokeWidth={1.75} />
       </div>
-      <h1 className="mt-5 font-display text-2xl font-semibold text-slate-900">Something went wrong</h1>
+      <h1 className="mt-5 font-display text-2xl font-extrabold text-slate-900">Something went wrong</h1>
       <p className="mt-2 max-w-xs text-sm text-slate-600">
         An unexpected error occurred. Try reloading the page, or head back home.
       </p>

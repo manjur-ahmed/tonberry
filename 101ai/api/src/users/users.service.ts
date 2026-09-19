@@ -96,14 +96,32 @@ export class UsersService {
     return user;
   }
 
+  // Idempotent — a user who's already trialing (or already picked a real
+  // plan) and calls this again just gets their existing state back
+  // unchanged, rather than the clock resetting on a repeat click.
+  async startTrial(id: string): Promise<User> {
+    const user = await this.findById(id);
+    if (!user) throw new Error('User not found');
+    if (user.trialStartedAt || user.plan) return user;
+    await this.usersRepository.update({ id }, { trialStartedAt: new Date() });
+    const updated = await this.findById(id);
+    if (!updated) throw new Error('User not found after starting trial');
+    return updated;
+  }
+
+  // Partial by design — see SetPreferencesDto's comment. The controller
+  // only ever includes a key here when that field was actually present in
+  // the request, so TypeORM's update() only touches those columns, leaving
+  // everything else (already saved by an earlier onboarding step) alone.
   async setPreferences(
     id: string,
-    preferences: {
+    preferences: Partial<{
       name: string;
       otherNames: string | null;
       country: string;
       darkTheme: boolean;
-    },
+      dateOfBirth: string | null;
+    }>,
   ): Promise<User> {
     await this.usersRepository.update({ id }, preferences);
     const user = await this.findById(id);

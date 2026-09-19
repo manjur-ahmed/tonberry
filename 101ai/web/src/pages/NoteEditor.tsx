@@ -299,6 +299,19 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp,
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
   }
 
+  // The OS's real native share sheet (Messages, Mail, WhatsApp, whatever
+  // else is installed) — not a bespoke "send to" destination picker of our
+  // own. Only offered when the browser actually supports it (see the
+  // OptionsMenu items below); no fallback for one that doesn't, same as
+  // this app doesn't build one for geolocation permission either.
+  function handleSendTo() {
+    const text = title.trim() ? `${title}\n\n${body}` : body
+    navigator.share({ title: title.trim() || 'Untitled note', text }).catch(() => {
+      // Rejects (AbortError) when the user just closes the share sheet —
+      // not a real failure, nothing to show for it.
+    })
+  }
+
   return (
     <main className="flex flex-1 flex-col px-4 pt-6">
       <div className="flex items-center justify-between">
@@ -323,14 +336,18 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp,
               aria-label="Copied to clipboard"
             />
           )}
-          {/* Copy all and Delete are both real now. Send to is still a
-              placeholder — it has nowhere defined to go yet. */}
           <OptionsMenu
             triggerClassName="text-slate-500"
             iconClassName="h-5 w-5"
             items={[
               { label: 'Copy all', icon: Copy, onClick: handleCopyAll },
-              { label: 'Send to', icon: Send, onClick: () => {} },
+              // Hidden rather than shown-but-broken on a browser with no
+              // Web Share API (older/desktop Firefox, mainly) — same
+              // "just don't offer it" call this app already makes for
+              // geolocation permission on a browser that can't query it.
+              ...(typeof navigator.share === 'function'
+                ? [{ label: 'Send to', icon: Send, onClick: handleSendTo }]
+                : []),
               {
                 label: 'Delete',
                 icon: Trash2,
@@ -413,7 +430,7 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp,
             className="mr-2 flex flex-1 items-center gap-2 rounded-[22px] border border-slate-200 bg-white py-2.5 pl-4 pr-3 shadow-sm transition-[border-radius]"
             onClick={() => textareaRef.current?.focus()}
           >
-            <Sparkles className="h-4 w-4 flex-shrink-0 text-violet-500" strokeWidth={1.75} />
+            <Sparkles className="h-4 w-4 flex-shrink-0 text-slate-500" strokeWidth={1.75} />
             <textarea
               ref={textareaRef}
               value={draft}
@@ -439,7 +456,7 @@ function NoteEditorForm({ tool, initialTitle, initialBody, noteKey: noteKeyProp,
               disabled={!draft.trim() || generateMutation.isPending}
               onClick={handleSend}
               aria-label="Send"
-              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-blue-500 text-white shadow-sm"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm hover:bg-slate-700"
             >
               <ArrowUp className="h-4 w-4" strokeWidth={2} />
             </button>

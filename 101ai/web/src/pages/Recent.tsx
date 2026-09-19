@@ -71,7 +71,7 @@ function Recent() {
         <ChevronLeft className="h-6 w-6" strokeWidth={1.75} />
       </button>
 
-      <h1 className="mt-4 font-display text-2xl font-semibold text-slate-900">Recent</h1>
+      <h1 className="mt-4 font-display text-2xl font-extrabold text-slate-900">Recent</h1>
 
       {error ? (
         <div className="mt-2">

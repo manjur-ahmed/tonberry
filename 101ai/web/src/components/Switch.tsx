@@ -1,4 +1,14 @@
-function Switch({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+interface SwitchProps {
+  checked: boolean
+  onChange: () => void
+  // Defaults match every existing usage (Settings' Memory toggle, etc.) —
+  // Theme.tsx overrides these to "DARK"/"LIGHT" instead, so this stays a
+  // shared component rather than a one-off copy just for that difference.
+  onLabel?: string
+  offLabel?: string
+}
+
+function Switch({ checked, onChange, onLabel = 'ON', offLabel = 'OFF' }: SwitchProps) {
   return (
     <button
       type="button"
@@ -14,14 +24,14 @@ function Switch({ checked, onChange }: { checked: boolean; onChange: () => void 
           checked ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        ON
+        {onLabel}
       </span>
       <span
         className={`absolute inset-y-0 right-2 flex items-center text-[10px] font-bold tracking-wide text-slate-500 transition-opacity ${
           checked ? 'opacity-0' : 'opacity-100'
         }`}
       >
-        OFF
+        {offLabel}
       </span>
       <span
         className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${

@@ -28,7 +28,7 @@ function Terms() {
         <ChevronLeft className="h-6 w-6" strokeWidth={1.75} />
       </button>
 
-      <h1 className="mt-4 font-display text-2xl font-semibold text-slate-900">Terms of Service</h1>
+      <h1 className="mt-4 font-display text-2xl font-extrabold text-slate-900">Terms of Service</h1>
       <p className="mt-1 text-xs text-slate-400">Last updated: {LAST_UPDATED}</p>
 
       <Section title="1. Agreement to these terms">

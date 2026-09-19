@@ -17,7 +17,7 @@ function ToolPage() {
   if (!tool) {
     return (
       <main className="px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold text-slate-900">Tool not found</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900">Tool not found</h1>
         <Link to="/" className="mt-4 inline-block text-slate-600 underline">
           Back to all tools
         </Link>
@@ -50,7 +50,7 @@ function ToolPage() {
         </div>
       </div>
 
-      <h1 className="mt-6 font-display text-2xl font-semibold text-slate-900">{tool.name}</h1>
+      <h1 className="mt-6 font-display text-2xl font-extrabold text-slate-900">{tool.name}</h1>
       <p className="mb-10 mt-2 text-slate-600">{tool.description}</p>
 
       <p className="mt-auto mb-2 text-center text-xs text-slate-400">

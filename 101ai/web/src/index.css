@@ -10,7 +10,14 @@ body {
 }
 
 @theme {
-  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  /* One font everywhere — --font-sans is what Tailwind's preflight uses as
+     the base document font (see --default-font-family), so this covers
+     any untagged text; --font-display is still its own token (rather than
+     just relying on the base font) since dozens of components already use
+     the `font-display` utility explicitly for headings, and this keeps
+     that working without touching every one of them. */
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Manrope', ui-sans-serif, system-ui, sans-serif;
   --animate-float: float 3s ease-in-out infinite;
 }
 

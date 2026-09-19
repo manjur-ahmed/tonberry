@@ -402,7 +402,7 @@ function ToolDashboard() {
         <button type="button" onClick={() => navigate('/')} aria-label="Back to home" className="text-2xl text-slate-900">
           ←
         </button>
-        <h1 className="font-display text-xl font-semibold text-slate-900">{tool?.name ?? 'Tool'}</h1>
+        <h1 className="font-display text-xl font-extrabold text-slate-900">{tool?.name ?? 'Tool'}</h1>
         <button
           type="button"
           onClick={handleToggleSave}
@@ -643,8 +643,8 @@ function ToolDashboard() {
         aria-label={tool?.composeLabel ?? 'New Chat'}
         className={`fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full px-6 py-4 shadow-lg transition-colors ${
           tool?.multiActionCompose && isComposeMenuOpen
-            ? 'bg-white text-violet-600 hover:bg-slate-50'
-            : 'bg-violet-600 text-white hover:bg-violet-700'
+            ? 'bg-white text-slate-900 hover:bg-slate-50'
+            : 'bg-slate-900 text-white hover:bg-slate-700'
         }`}
       >
         <Sparkles className="h-5 w-5" strokeWidth={1.75} />
@@ -826,7 +826,7 @@ function ToolDashboard() {
               }
               onClick={handleSend}
               aria-label="Send"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-40"
             >
               <ArrowUp className="h-5 w-5" strokeWidth={2} />
             </button>

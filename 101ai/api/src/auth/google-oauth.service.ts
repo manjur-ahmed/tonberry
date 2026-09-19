@@ -14,16 +14,14 @@ const USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 export class GoogleOAuthService {
   constructor(private readonly config: ConfigService) {}
 
+  // Non-null on both: see AppModule's ConfigModule.validate — this app
+  // never finishes booting with either unset.
   private get clientId(): string {
-    return (
-      this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID') || 'not-configured'
-    );
+    return this.config.get<string>('GOOGLE_OAUTH_CLIENT_ID')!;
   }
 
   private get clientSecret(): string {
-    return (
-      this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET') || 'not-configured'
-    );
+    return this.config.get<string>('GOOGLE_OAUTH_CLIENT_SECRET')!;
   }
 
   private get callbackUrl(): string {
@@ -33,7 +31,13 @@ export class GoogleOAuthService {
     );
   }
 
-  getAuthorizationUrl(): string {
+  // state is an opaque, unguessable value the caller generates and later
+  // verifies came back unchanged (see AuthController.googleAuth/
+  // googleAuthCallback's state-cookie check) — without it, an attacker can
+  // start their own Google sign-in, then trick a victim into opening the
+  // resulting callback URL, logging the victim into the attacker's account
+  // (login CSRF).
+  getAuthorizationUrl(state: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.callbackUrl,
@@ -41,6 +45,7 @@ export class GoogleOAuthService {
       scope: 'openid email profile',
       access_type: 'online',
       prompt: 'select_account',
+      state,
     });
     return `${AUTH_URL}?${params.toString()}`;
   }

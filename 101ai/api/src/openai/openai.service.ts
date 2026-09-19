@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import { getToolConfig } from '../tools/tool-config';
@@ -204,6 +208,7 @@ export interface GenerateReplyParams {
 @Injectable()
 export class OpenAiService {
   private readonly client: OpenAI;
+  private readonly logger = new Logger(OpenAiService.name);
 
   constructor(
     config: ConfigService,
@@ -298,7 +303,11 @@ export class OpenAiService {
       }
 
       return content;
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `generateReply failed for tool "${params.toolSlug}"`,
+        error instanceof Error ? error.stack : error,
+      );
       throw new InternalServerErrorException(
         'Could not generate a reply — try again.',
       );
@@ -347,7 +356,11 @@ export class OpenAiService {
       if (!raw) return false;
       const parsed = JSON.parse(raw) as { needsMaths?: boolean };
       return parsed.needsMaths === true;
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        'needsMathsUpgrade failed, defaulting to false',
+        error instanceof Error ? error.stack : error,
+      );
       return false;
     }
   }
@@ -441,7 +454,11 @@ export class OpenAiService {
             : null,
         nearestOnly: record.nearestOnly === true,
       };
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        'extractRouteIntent failed, falling back to a chat reply',
+        error instanceof Error ? error.stack : error,
+      );
       return fallback;
     }
   }
@@ -512,7 +529,11 @@ export class OpenAiService {
           typeof record.searchQuery === 'string' ? record.searchQuery : null,
         isRefinement: record.isRefinement === true,
       };
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        'extractShoppingIntent failed, falling back to a chat reply',
+        error instanceof Error ? error.stack : error,
+      );
       return fallback;
     }
   }
