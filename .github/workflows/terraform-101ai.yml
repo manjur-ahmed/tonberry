@@ -52,6 +52,51 @@ jobs:
           # "Unsupported argument" on the very first real run (2026-09-19).
           terraform_version: "~> 1.16"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: 101ai/api/package-lock.json
+
+      # backend_api.tf's aws_lambda_function/aws_lambda_layer_version
+      # resources reference ./lambda.zip and ./layer.zip — gitignored build
+      # artifacts, not source, so a plain checkout doesn't have them.
+      # Missing entirely on this workflow's first few real runs
+      # (2026-09-19): `terraform init`/`validate` failed with "no such
+      # file or directory" until these steps were added, mirroring
+      # deploy-101ai-api.yml's identical packaging (see its own comments
+      # for why the layer/function split exists and the ordering it
+      # depends on). lambda.zip's content doesn't matter here — backend_api.tf
+      # ignores changes to it — but the file still has to exist for
+      # filebase64sha256() to evaluate at all.
+      - name: Build API dist/
+        working-directory: 101ai/api
+        run: |
+          npm ci
+          npm run build
+
+      - name: Stage Lambda layer (production dependencies)
+        working-directory: 101ai/api
+        run: |
+          rm -rf .lambda-layer-build
+          mkdir -p .lambda-layer-build/nodejs
+          cp package.json package-lock.json .lambda-layer-build/nodejs/
+          cd .lambda-layer-build/nodejs
+          npm ci --omit=dev
+          rm package.json package-lock.json
+
+      - name: Zip Lambda layer
+        working-directory: 101ai/api
+        run: cd .lambda-layer-build && zip -qr ../../infra/layer.zip .
+
+      - name: Stage placeholder lambda.zip
+        working-directory: 101ai/api
+        run: |
+          rm -rf .lambda-build
+          mkdir .lambda-build
+          cp -r dist .lambda-build/
+          cd .lambda-build && zip -qr ../../infra/lambda.zip .
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AI101_GITHUB_DEPLOY_ROLE_ARN }}
