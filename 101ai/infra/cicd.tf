@@ -80,6 +80,21 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       # alarms/logs) don't support meaningful resource-level IAM scoping
       # anyway, and a missing narrow action just fails the next apply
       # loudly rather than doing anything destructive.
+      # Missing since terraform-101ai.yml was first built (2026-09-19) — the
+      # role could deploy app artifacts but never had permission to even
+      # read/write the remote state file itself, so `terraform init` fails
+      # with a 403 before getting anywhere near the resources below. Not
+      # part of the "no IAM" boundary above — this is the state *bucket*
+      # (data), unrelated to IAM policy on this role.
+      {
+        Sid    = "AccessTerraformState"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::tonberry-101ai-tfstate-396608771464",
+          "arn:aws:s3:::tonberry-101ai-tfstate-396608771464/101ai/terraform.tfstate*",
+        ]
+      },
       {
         Sid    = "ManageS3Buckets"
         Effect = "Allow"
