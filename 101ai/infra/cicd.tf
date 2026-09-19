@@ -69,9 +69,9 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       # Everything below lets `terraform apply` actually manage this infra
       # from CI (terraform-101ai.yml), not just deploy already-built app
       # artifacts like the three statements above. Deliberately EXCLUDES
-      # iam:*/sts:* and this role/policy/the OIDC provider itself — a role
-      # that can modify its own (or any) IAM policy is a privilege-
-      # escalation risk, so any future change to aws_iam_role/
+      # iam:*/sts:* WRITE actions and this role/policy/the OIDC provider
+      # itself — a role that can modify its own (or any) IAM policy is a
+      # privilege-escalation risk, so any actual CHANGE to aws_iam_role/
       # aws_iam_role_policy/aws_iam_openid_connect_provider still requires
       # a human running `terraform apply` locally with real admin
       # credentials, same as this policy's own first rollout (2026-09-19).
@@ -80,6 +80,26 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       # alarms/logs) don't support meaningful resource-level IAM scoping
       # anyway, and a missing narrow action just fails the next apply
       # loudly rather than doing anything destructive.
+      {
+        # Read-only — NOT excluded like IAM writes above. Terraform
+        # refreshes every managed resource's state on every plan,
+        # including the IAM roles/OIDC provider defined elsewhere in this
+        # config, regardless of whether they're actually changing. With
+        # zero iam:* permissions at all, even a plan touching nothing IAM-
+        # related failed outright trying to read their current state
+        # (confirmed via the first real CI run to get this far,
+        # 2026-09-19). Read access carries no privilege-escalation risk on
+        # its own — only the write actions deliberately excluded above do.
+        Sid    = "ReadIamForStateRefresh"
+        Effect = "Allow"
+        Action = ["iam:Get*", "iam:List*"]
+        Resource = [
+          aws_iam_role.github_actions_deploy.arn,
+          aws_iam_role.lambda_exec.arn,
+          aws_iam_role.grafana_cloudwatch.arn,
+          aws_iam_openid_connect_provider.github.arn,
+        ]
+      },
       # Missing since terraform-101ai.yml was first built (2026-09-19) — the
       # role could deploy app artifacts but never had permission to even
       # read/write the remote state file itself, so `terraform init` fails
