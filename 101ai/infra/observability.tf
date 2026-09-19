@@ -18,6 +18,31 @@ resource "aws_sns_topic_subscription" "alerts_email" {
   endpoint  = var.alert_email
 }
 
+# --- Cold start visibility -------------------------------------------------
+# Deliberately NOT Lambda Insights (a paid extension with a small per-
+# invocation cost) or a new alarm (evaluated continuously) — this just saves
+# a Logs Insights query against the log group Lambda already writes to for
+# free. Only costs anything (a small per-GB-scanned charge) when actually
+# run, on demand, from the CloudWatch console. Exists to verify the
+# node_modules-layer split (see aws_lambda_layer_version.dependencies in
+# backend_api.tf) actually reduced cold-start Init Duration, since nothing
+# else here measures that specifically — the lambda_duration alarm below
+# covers total invocation time, not cold-start init time.
+resource "aws_cloudwatch_query_definition" "lambda_cold_starts" {
+  name            = "tonberry-101ai/Cold start rate and duration"
+  log_group_names = [aws_cloudwatch_log_group.api.name]
+  query_string    = <<-QUERY
+    fields @timestamp, @message
+    | filter @type = "REPORT"
+    | parse @message /Init Duration: (?<initDuration>[\d\.]+) ms/
+    | stats count(*) as totalInvocations,
+            count(initDuration) as coldStarts,
+            avg(initDuration) as avgInitDurationMs,
+            pct(initDuration, 99) as p99InitDurationMs,
+            max(initDuration) as maxInitDurationMs
+  QUERY
+}
+
 # --- Lambda alarms --------------------------------------------------------
 
 resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
